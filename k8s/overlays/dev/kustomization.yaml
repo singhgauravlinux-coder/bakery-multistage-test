@@ -29,56 +29,6 @@ resources:
 
 commonLabels:
   environment: dev
-  
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 patches:
 - path: patch-ingress-host.yaml
