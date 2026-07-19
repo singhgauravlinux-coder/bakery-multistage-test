@@ -39,4 +39,7 @@ patches:
     kind: Deployment
     labelSelector: app.kubernetes.io/part-of=crumb-and-ember
 
-images: []
+images:
+- name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newTag: 2e71aee
