@@ -114,4 +114,4 @@ images:
   newTag: 3ef90c6
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
-  newTag: 2e71aee
+  newTag: 265e26b
