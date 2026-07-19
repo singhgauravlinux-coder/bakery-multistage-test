@@ -108,7 +108,7 @@ images:
   newTag: 2e71aee
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/search-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/search-service
-  newTag: 2e71aee
+  newTag: fed0bce
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/supplier-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/supplier-service
   newTag: 2e71aee
