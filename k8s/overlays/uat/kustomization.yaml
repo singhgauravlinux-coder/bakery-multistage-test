@@ -40,6 +40,7 @@ commonLabels:
 
 
 
+
 patches:
 - path: patch-ingress-host.yaml
   target:
@@ -72,6 +73,9 @@ patches:
     labelSelector: app.kubernetes.io/part-of=crumb-and-ember
 
 images:
+- name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newTag: 2e71aee
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage/analytics-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/analytics-service
   newTag: c31af6b
