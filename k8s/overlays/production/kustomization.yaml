@@ -91,6 +91,9 @@ images:
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/pricing-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/pricing-service
   newTag: 2e71aee
+- name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/product-catalog-service
+  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/product-catalog-service
+  newTag: 2e71aee
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/promotion-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/promotion-service
   newTag: 2e71aee
