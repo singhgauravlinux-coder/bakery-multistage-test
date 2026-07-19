@@ -136,6 +136,7 @@ spec:
       containers:
         - name: authelia
           image: authelia/authelia:4
+          command: ["authelia"]
           args: ["--config=/config/configuration.yml"]
           ports:
             - containerPort: 9091
