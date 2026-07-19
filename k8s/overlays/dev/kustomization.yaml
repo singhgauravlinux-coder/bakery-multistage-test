@@ -76,6 +76,7 @@ commonLabels:
 
 
 
+
 patches:
 - path: patch-ingress-host.yaml
   target:
@@ -174,7 +175,7 @@ images:
   newTag: dc77837
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/recommendation-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/recommendation-service
-  newTag: 2e71aee
+  newTag: b754b04
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/review-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/review-service
   newTag: 2e71aee
