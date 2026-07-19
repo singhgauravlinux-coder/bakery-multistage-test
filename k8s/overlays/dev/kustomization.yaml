@@ -29,28 +29,7 @@ resources:
 
 commonLabels:
   environment: dev
-
-
   
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 patches:
 - path: patch-ingress-host.yaml
   target:
@@ -86,79 +65,5 @@ patches:
 #   images:
 #     - name: ghcr.io/OWNER/bakery-language/auth-service
 #       newTag: <short-sha>
-images:
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/analytics-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/analytics-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/api-gateway
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/api-gateway
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/auth-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/auth-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/baking-schedule-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/baking-schedule-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/cart-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/cart-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/currency-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/currency-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/delivery-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/delivery-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/frontend
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/frontend
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/inventory-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/inventory-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/invoice-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/invoice-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/language-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/language-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/loyalty-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/loyalty-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/media-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/media-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/notification-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/notification-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/order-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/order-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/payment-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/payment-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/pricing-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/pricing-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/product-catalog-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/product-catalog-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/promotion-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/promotion-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/recipe-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/recipe-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/recommendation-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/recommendation-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/review-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/review-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/search-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/search-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/supplier-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/supplier-service
-  newTag: c31af6b
-- name: ghcr.io/singhgauravlinux-coder/bakery-multistage/user-service
-  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/user-service
-  newTag: c31af6b
+images: []
+
