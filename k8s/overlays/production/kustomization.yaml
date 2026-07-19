@@ -46,6 +46,9 @@ images:
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/cart-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/cart-service
   newTag: 2e71aee
+- name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/language-service
+  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/language-service
+  newTag: 2e71aee
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/order-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/order-service
   newTag: 2e71aee
