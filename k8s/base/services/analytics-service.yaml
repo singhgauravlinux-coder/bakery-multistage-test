@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: analytics-service
-          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/analytics-service:71ba5f7
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/analytics-service:2e71aee
           imagePullPolicy: Always
           ports:
             - containerPort: 3019
