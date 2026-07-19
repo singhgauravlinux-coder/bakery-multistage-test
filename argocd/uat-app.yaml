@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/singhgauravlinux-coder/bakery-multistage.git
+    repoURL: https://github.com/singhgauravlinux-coder/bakery-multistage-test.git
     targetRevision: main
     path: k8s/overlays/uat
   destination:
