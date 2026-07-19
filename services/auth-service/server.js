@@ -84,6 +84,10 @@ const verifyToken = (token) => {
 // --- Storage: PostgreSQL when DATABASE_URL is set, in-memory otherwise ---
 const pool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL, max: 10 }) : null;
 if (pool) pool.on('error', (err) => logger.error({ event: 'pg_pool_error', message: err.message }, 'postgres pool error'));
+// Set once store.init() has actually applied the migration successfully.
+// /ready stays 503 until this is true, so k8s never routes login traffic
+// to a pod whose accounts/audit tables are missing the security columns.
+let migrationReady = !pool;
 
 // Self-migrating (idempotent): init.sql only runs on the FIRST postgres
 // boot, so existing clusters would miss the security columns/tables.
@@ -348,6 +352,9 @@ app.get('/health', (req, res) => res.json({ status: 'ok', service: SERVICE_NAME 
 app.get('/ready', async (req, res) => {
   try {
     await store.ping();
+    if (!migrationReady) {
+      return res.status(503).json({ ready: false, service: SERVICE_NAME, storage: store.mode, reason: 'migration_pending' });
+    }
     res.json({ ready: true, service: SERVICE_NAME, storage: store.mode });
   } catch (err) {
     req.log.warn({ event: 'readiness_failed', message: err.message }, 'database unreachable');
@@ -654,11 +661,24 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars -- Expr
   res.status(500).json({ error: 'Internal server error' });
 });
 
+async function runMigrationWithRetry(attempt = 1) {
+  try {
+    await store.init();
+    await seedDemoAccount();
+    migrationReady = true;
+    logger.info({ event: 'migration_complete', attempt }, 'security migration applied');
+  } catch (err) {
+    const delayMs = Math.min(30000, 1000 * 2 ** (attempt - 1));
+    logger.warn({ event: 'migration_deferred', attempt, delayMs, message: err.message },
+      'security migration failed; retrying');
+    setTimeout(() => runMigrationWithRetry(attempt + 1), delayMs);
+  }
+}
+
 function start() {
   const server = app.listen(PORT, () => {
     logger.info({ event: 'service_started', port: PORT, storage: store.mode }, `${SERVICE_NAME} listening`);
-    store.init().then(seedDemoAccount).catch((err) =>
-      logger.warn({ event: 'migration_deferred', message: err.message }, 'security migration will run when the database is up'));
+    runMigrationWithRetry();
   });
   for (const signal of ['SIGTERM', 'SIGINT']) {
     process.on(signal, () => {
