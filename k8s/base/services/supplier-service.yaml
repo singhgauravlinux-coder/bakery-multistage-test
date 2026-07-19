@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: supplier-service
-          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/supplier-service:71ba5f7
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/supplier-service:2e71aee
           imagePullPolicy: Always
           ports:
             - containerPort: 3018
