@@ -40,6 +40,9 @@ patches:
     labelSelector: app.kubernetes.io/part-of=crumb-and-ember
 
 images:
+- name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/review-service
+  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/review-service
+  newTag: 2e71aee
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
   newTag: 2e71aee
