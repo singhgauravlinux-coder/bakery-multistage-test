@@ -30,6 +30,7 @@ resources:
 commonLabels:
   environment: dev
   
+
 patches:
 - path: patch-ingress-host.yaml
   target:
@@ -65,5 +66,7 @@ patches:
 #   images:
 #     - name: ghcr.io/OWNER/bakery-language/auth-service
 #       newTag: <short-sha>
-images: []
-
+images:
+- name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newTag: 2e71aee
