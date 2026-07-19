@@ -54,7 +54,7 @@ images:
   newTag: 5f51428
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/cart-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/cart-service
-  newTag: 2e71aee
+  newTag: 1787d66
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/currency-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/currency-service
   newTag: 2e71aee
