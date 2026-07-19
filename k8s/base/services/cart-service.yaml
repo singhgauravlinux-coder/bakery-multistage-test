@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: cart-service
-          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/cart-service:71ba5f7
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/cart-service:2e71aee
           imagePullPolicy: Always
           ports:
             - containerPort: 3006
