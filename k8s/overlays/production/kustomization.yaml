@@ -93,7 +93,7 @@ images:
   newTag: c6f47b5
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/product-catalog-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/product-catalog-service
-  newTag: 2e71aee
+  newTag: 03a99c0
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/promotion-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/promotion-service
   newTag: 2e71aee
