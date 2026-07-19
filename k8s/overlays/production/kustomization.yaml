@@ -57,7 +57,7 @@ images:
   newTag: 1787d66
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/currency-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/currency-service
-  newTag: 2e71aee
+  newTag: 79fd313
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/delivery-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/delivery-service
   newTag: 2e71aee
