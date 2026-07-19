@@ -119,7 +119,7 @@ images:
   newTag: 5a4c1aa
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/loyalty-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/loyalty-service
-  newTag: 2e71aee
+  newTag: e1bbe35
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/media-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/media-service
   newTag: 2e71aee
