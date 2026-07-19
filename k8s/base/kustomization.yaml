@@ -10,7 +10,6 @@ resources:
   - data/postgres.yaml
   - data/redis.yaml
   - data/adminer.yaml
-  - data/authelia.yaml
 
   - services/analytics-service.yaml
   - services/api-gateway.yaml
