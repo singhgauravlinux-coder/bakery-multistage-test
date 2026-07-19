@@ -29,6 +29,14 @@ patches:
   target:
     kind: Ingress
     name: bakery-db-ingress
+- path: patch-db-ingress-middleware.yaml
+  target:
+    kind: Ingress
+    name: bakery-db-ingress
+- path: patch-auth-ingress-host.yaml
+  target:
+    kind: Ingress
+    name: bakery-auth-ingress    
 - patch: |-
     - op: replace
       path: /spec/template/spec/containers/0/resources
