@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: payment-service
-          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/payment-service:71ba5f7
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/payment-service:2e71aee
           imagePullPolicy: Always
           ports:
             - containerPort: 3008
