@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: search-service
-          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/search-service:71ba5f7
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/search-service:2e71aee
           imagePullPolicy: Always
           ports:
             - containerPort: 3012
