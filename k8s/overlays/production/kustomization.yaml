@@ -66,7 +66,7 @@ images:
   newTag: ab43d33
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/inventory-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/inventory-service
-  newTag: 2e71aee
+  newTag: 6a60687
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/invoice-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/invoice-service
   newTag: 2e71aee
