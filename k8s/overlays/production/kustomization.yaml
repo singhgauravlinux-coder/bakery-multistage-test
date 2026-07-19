@@ -17,11 +17,11 @@ resources:
 commonLabels:
   environment: production
 
-patches:
 #- path: patch-ingress-host.yaml
 #  target:
 #    kind: Ingress
 #    name: bakery-ingress
+patches:
 - patch: |-
     - op: replace
       path: /spec/template/spec/containers/0/resources
@@ -40,6 +40,9 @@ patches:
     labelSelector: app.kubernetes.io/part-of=crumb-and-ember
 
 images:
+- name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/user-service
+  newTag: 2e71aee
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage/analytics-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage/analytics-service
   newTag: c31af6b
