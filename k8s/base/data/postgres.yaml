@@ -27,6 +27,11 @@ metadata:
   labels:
     app.kubernetes.io/part-of: crumb-and-ember
 data:
+  # Kept in sync with db/init.sql — this is what actually bootstraps a
+  # brand-new Postgres PVC in k8s (docker-entrypoint-initdb.d only runs
+  # once, on first boot). If db/init.sql changes, update this block too,
+  # or switch to a kustomize configMapGenerator sourced from db/init.sql
+  # so the two can't drift again.
   init.sql: |
     CREATE TABLE IF NOT EXISTS products (
       id          TEXT PRIMARY KEY,
@@ -102,6 +107,96 @@ data:
       ('u-1', 'Amelie Fournier', 'amelie@crumbandember.dev', '12 Rue du Levain', '["nut-free"]'),
       ('u-2', 'Tomas Iversen',   'tomas@example.com',        '8 Rye Lane',        '[]')
     ON CONFLICT (id) DO NOTHING;
+
+    -- Failed-login tracking + account locking/unlocking + email verification.
+    ALTER TABLE accounts ADD COLUMN IF NOT EXISTS failed_login_attempts   INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE accounts ADD COLUMN IF NOT EXISTS last_failed_login_at    TIMESTAMPTZ;
+    ALTER TABLE accounts ADD COLUMN IF NOT EXISTS locked_at               TIMESTAMPTZ;
+    ALTER TABLE accounts ADD COLUMN IF NOT EXISTS unlock_token_hash       TEXT;
+    ALTER TABLE accounts ADD COLUMN IF NOT EXISTS unlock_token_expires_at TIMESTAMPTZ;
+    ALTER TABLE accounts ADD COLUMN IF NOT EXISTS email_verified          BOOLEAN NOT NULL DEFAULT false;
+
+    -- Per-attempt login history (success and failure) with client forensics.
+    CREATE TABLE IF NOT EXISTS login_history (
+      id             BIGSERIAL PRIMARY KEY,
+      user_id        TEXT,
+      email          TEXT,
+      success        BOOLEAN NOT NULL,
+      failure_reason TEXT,
+      ip             TEXT,
+      user_agent     TEXT,
+      browser        TEXT,
+      os             TEXT,
+      device         TEXT,
+      request_id     TEXT,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_history_user  ON login_history (user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_login_history_email ON login_history (email, created_at DESC);
+
+    -- Cross-service security/audit trail.
+    CREATE TABLE IF NOT EXISTS security_audit_logs (
+      id             BIGSERIAL PRIMARY KEY,
+      service        TEXT NOT NULL,
+      action         TEXT NOT NULL,
+      user_id        TEXT,
+      email          TEXT,
+      ip             TEXT,
+      user_agent     TEXT,
+      browser        TEXT,
+      os             TEXT,
+      device         TEXT,
+      endpoint       TEXT,
+      method         TEXT,
+      request_id     TEXT,
+      status_code    INTEGER,
+      success        BOOLEAN NOT NULL DEFAULT true,
+      failure_reason TEXT,
+      metadata       JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_user    ON security_audit_logs (user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_action  ON security_audit_logs (action, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_audit_request ON security_audit_logs (request_id);
+
+    -- Orders now carry payment state.
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'card';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'paid';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_id     TEXT;
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS amount         NUMERIC(10,2);
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS currency       TEXT NOT NULL DEFAULT 'EUR';
+    ALTER TABLE orders ADD COLUMN IF NOT EXISTS paid_at        TIMESTAMPTZ;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_payment_id ON orders (payment_id) WHERE payment_id IS NOT NULL;
+
+    -- Payment event trail plus masked instrument summary on the payment row.
+    ALTER TABLE payments ADD COLUMN IF NOT EXISTS instrument_summary TEXT;
+    CREATE TABLE IF NOT EXISTS payment_events (
+      id         BIGSERIAL PRIMARY KEY,
+      payment_id TEXT,
+      order_id   TEXT,
+      event      TEXT NOT NULL,
+      status     TEXT,
+      amount     NUMERIC(10,2),
+      currency   TEXT,
+      ip         TEXT,
+      request_id TEXT,
+      detail     JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS idx_payment_events_payment ON payment_events (payment_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_payment_events_order   ON payment_events (order_id, created_at DESC);
+
+    -- Invoices move from in-memory to Postgres.
+    CREATE TABLE IF NOT EXISTS invoices (
+      id          TEXT PRIMARY KEY,
+      order_id    TEXT NOT NULL,
+      amount      NUMERIC(10,2) NOT NULL,
+      currency    TEXT NOT NULL DEFAULT 'EUR',
+      customer    TEXT NOT NULL DEFAULT 'walk-in',
+      issued_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      due_in_days INTEGER NOT NULL DEFAULT 14
+    );
+    CREATE INDEX IF NOT EXISTS idx_invoices_order ON invoices (order_id);
 ---
 apiVersion: apps/v1
 kind: StatefulSet
