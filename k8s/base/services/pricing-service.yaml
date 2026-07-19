@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricing-service
+  namespace: bakery
+  labels:
+    app: pricing-service
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pricing-service
+  template:
+    metadata:
+      labels:
+        app: pricing-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pricing-service
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/pricing-service:71ba5f7
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3005
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SERVICE_NAME
+              value: "pricing-service"
+            - name: PORT
+              value: "3005"
+            - name: LOG_LEVEL
+              value: "info"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pricing-service
+  namespace: bakery
+  labels:
+    app: pricing-service
+spec:
+  selector:
+    app: pricing-service
+  ports:
+    - port: 3005
+      targetPort: 3005
+      protocol: TCP

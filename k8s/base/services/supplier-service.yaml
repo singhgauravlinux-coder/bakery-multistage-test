@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: supplier-service
+  namespace: bakery
+  labels:
+    app: supplier-service
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: supplier-service
+  template:
+    metadata:
+      labels:
+        app: supplier-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: supplier-service
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/supplier-service:71ba5f7
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3018
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SERVICE_NAME
+              value: "supplier-service"
+            - name: PORT
+              value: "3018"
+            - name: LOG_LEVEL
+              value: "info"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3018
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3018
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: supplier-service
+  namespace: bakery
+  labels:
+    app: supplier-service
+spec:
+  selector:
+    app: supplier-service
+  ports:
+    - port: 3018
+      targetPort: 3018
+      protocol: TCP

@@ -1,0 +1,34 @@
+name: media-service
+
+# Independent pipeline for this service only. Triggers when its own code,
+# its own k8s manifest, or the shared pipeline/action definitions change -
+# never when an unrelated service changes.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/media-service/**"
+      - "k8s/base/services/media-service.yaml"
+      - ".github/workflows/media-service.yml"
+      - ".github/workflows/_service-pipeline.yml"
+      - ".github/actions/bump-image/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/media-service/**"
+  workflow_dispatch:
+
+# The reusable pipeline's jobs need packages:write (push to GHCR) and
+# contents:write (commit image-tag bumps to the k8s overlays). A reusable
+# workflow's job permissions can never exceed what the CALLER grants, so
+# this has to be declared here, not just in _service-pipeline.yml.
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  pipeline:
+    uses: ./.github/workflows/_service-pipeline.yml
+    with:
+      service: media-service
+    secrets: inherit

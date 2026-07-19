@@ -1,0 +1,366 @@
+# Crumb & Ember — full local stack in one command:
+#   cp .env.example .env   (optional; sane defaults are baked in)
+#   docker compose up --build
+#
+# Frontend .......... http://localhost:8080
+# API gateway ....... http://localhost:3000/api/...
+# Adminer (DB UI) ... http://localhost:8081   (postgres / bakery / bakery)
+name: crumb-and-ember
+
+x-node-service: &node-service
+  restart: unless-stopped
+  environment: &node-env
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+  healthcheck:
+    test: ["CMD", "node", "-e", "fetch('http://localhost:'+(process.env.PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+    interval: 15s
+    timeout: 3s
+    retries: 5
+    start_period: 10s
+  networks: [bakery]
+
+services:
+  # ------------------------------------------------------------ data layer
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bakery}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bakery}
+      POSTGRES_DB: ${POSTGRES_DB:-bakery}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bakery} -d ${POSTGRES_DB:-bakery}"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [bakery]
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [bakery]
+
+  adminer:
+    image: adminer:4
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: dracula
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [bakery]
+
+  # ------------------------------------------------------------------ edge
+  frontend:
+    build: ./services/frontend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./services/frontend/nginx.compose.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks: [bakery]
+
+  api-gateway:
+    <<: *node-service
+    build: ./services/api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: api-gateway
+
+  # --------------------------------------------------------- domain services
+  auth-service:
+    <<: *node-service
+    build: ./services/auth-service
+    ports:
+      - "3001:3001"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: auth-service
+      PORT: "3001"
+      NOTIFY_SERVICE_URL: http://notification-service:3010
+      AUTH_MAX_FAILED_ATTEMPTS: ${AUTH_MAX_FAILED_ATTEMPTS:-5}
+      AUTH_RETURN_DEBUG_TOKENS: ${AUTH_RETURN_DEBUG_TOKENS:-true}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bakery}:${POSTGRES_PASSWORD:-bakery}@postgres:5432/${POSTGRES_DB:-bakery}
+      AUTH_TOKEN_SECRET: ${AUTH_TOKEN_SECRET:-local-dev-token-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  user-service:
+    <<: *node-service
+    build: ./services/user-service
+    ports:
+      - "3002:3002"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: user-service
+      PORT: "3002"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bakery}:${POSTGRES_PASSWORD:-bakery}@postgres:5432/${POSTGRES_DB:-bakery}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  product-catalog-service:
+    <<: *node-service
+    build: ./services/product-catalog-service
+    ports:
+      - "3003:3003"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: product-catalog-service
+      PORT: "3003"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bakery}:${POSTGRES_PASSWORD:-bakery}@postgres:5432/${POSTGRES_DB:-bakery}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  inventory-service:
+    <<: *node-service
+    build: ./services/inventory-service
+    ports:
+      - "3004:3004"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: inventory-service
+      PORT: "3004"
+
+  pricing-service:
+    <<: *node-service
+    build: ./services/pricing-service
+    ports:
+      - "3005:3005"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: pricing-service
+      PORT: "3005"
+
+  cart-service:
+    <<: *node-service
+    build: ./services/cart-service
+    ports:
+      - "3006:3006"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: cart-service
+      PORT: "3006"
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  order-service:
+    <<: *node-service
+    build: ./services/order-service
+    ports:
+      - "3007:3007"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: order-service
+      PORT: "3007"
+      PAYMENT_SERVICE_URL: http://payment-service:3008
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bakery}:${POSTGRES_PASSWORD:-bakery}@postgres:5432/${POSTGRES_DB:-bakery}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  payment-service:
+    <<: *node-service
+    build: ./services/payment-service
+    ports:
+      - "3008:3008"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: payment-service
+      PORT: "3008"
+      ORDER_SERVICE_URL: http://order-service:3007
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bakery}:${POSTGRES_PASSWORD:-bakery}@postgres:5432/${POSTGRES_DB:-bakery}
+      # Leave unset to run the mock provider locally.
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  delivery-service:
+    <<: *node-service
+    build: ./services/delivery-service
+    ports:
+      - "3009:3009"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: delivery-service
+      PORT: "3009"
+
+  notification-service:
+    <<: *node-service
+    build: ./services/notification-service
+    ports:
+      - "3010:3010"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: notification-service
+      PORT: "3010"
+
+  review-service:
+    <<: *node-service
+    build: ./services/review-service
+    ports:
+      - "3011:3011"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: review-service
+      PORT: "3011"
+
+  search-service:
+    <<: *node-service
+    build: ./services/search-service
+    ports:
+      - "3012:3012"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: search-service
+      PORT: "3012"
+
+  recommendation-service:
+    <<: *node-service
+    build: ./services/recommendation-service
+    ports:
+      - "3013:3013"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: recommendation-service
+      PORT: "3013"
+
+  promotion-service:
+    <<: *node-service
+    build: ./services/promotion-service
+    ports:
+      - "3014:3014"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: promotion-service
+      PORT: "3014"
+
+  loyalty-service:
+    <<: *node-service
+    build: ./services/loyalty-service
+    ports:
+      - "3015:3015"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: loyalty-service
+      PORT: "3015"
+
+  recipe-service:
+    <<: *node-service
+    build: ./services/recipe-service
+    ports:
+      - "3016:3016"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: recipe-service
+      PORT: "3016"
+
+  baking-schedule-service:
+    <<: *node-service
+    build: ./services/baking-schedule-service
+    ports:
+      - "3017:3017"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: baking-schedule-service
+      PORT: "3017"
+
+  supplier-service:
+    <<: *node-service
+    build: ./services/supplier-service
+    ports:
+      - "3018:3018"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: supplier-service
+      PORT: "3018"
+
+  analytics-service:
+    <<: *node-service
+    build: ./services/analytics-service
+    ports:
+      - "3019:3019"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: analytics-service
+      PORT: "3019"
+
+  media-service:
+    <<: *node-service
+    build: ./services/media-service
+    ports:
+      - "3020:3020"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: media-service
+      PORT: "3020"
+
+  invoice-service:
+    <<: *node-service
+    build: ./services/invoice-service
+    ports:
+      - "3021:3021"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: invoice-service
+      PORT: "3021"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-bakery}:${POSTGRES_PASSWORD:-bakery}@postgres:5432/${POSTGRES_DB:-bakery}
+      ORDER_SERVICE_URL: http://order-service:3007
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  currency-service:
+    <<: *node-service
+    build: ./services/currency-service
+    ports:
+      - "3022:3022"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: currency-service
+      PORT: "3022"
+
+  language-service:
+    <<: *node-service
+    build: ./services/language-service
+    ports:
+      - "3023:3023"
+    environment:
+      <<: *node-env
+      SERVICE_NAME: language-service
+      PORT: "3023"
+
+networks:
+  bakery:
+
+volumes:
+  pgdata:
+  redisdata:

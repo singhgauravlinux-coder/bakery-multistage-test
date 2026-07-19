@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loyalty-service
+  namespace: bakery
+  labels:
+    app: loyalty-service
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: loyalty-service
+  template:
+    metadata:
+      labels:
+        app: loyalty-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loyalty-service
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/loyalty-service:71ba5f7
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3015
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SERVICE_NAME
+              value: "loyalty-service"
+            - name: PORT
+              value: "3015"
+            - name: LOG_LEVEL
+              value: "info"
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3015
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3015
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loyalty-service
+  namespace: bakery
+  labels:
+    app: loyalty-service
+spec:
+  selector:
+    app: loyalty-service
+  ports:
+    - port: 3015
+      targetPort: 3015
+      protocol: TCP

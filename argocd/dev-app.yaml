@@ -1,0 +1,27 @@
+# Register with: kubectl apply -f argocd/dev-app.yaml --namespace argocd
+# (once, against whatever cluster runs your Argo CD control plane)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bakery-dev
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  project: default
+  source:
+    # Replace with this repo's actual URL.
+    repoURL: https://github.com/singhgauravlinux-coder/bakery-multistage.git
+    targetRevision: main
+    path: k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bakery-dev
+  syncPolicy:
+    # Dev auto-syncs the moment a service's CI pipeline commits a new image
+    # tag - no human in the loop, fastest feedback.
+    automated:
+      prune: true      # remove resources deleted from git
+      selfHeal: true    # revert manual kubectl edits back to what git says
+    syncOptions:
+      - CreateNamespace=true

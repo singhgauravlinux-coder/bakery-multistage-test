@@ -1,0 +1,187 @@
+# PostgreSQL — the platform's system of record.
+# Backs: auth-service, user-service, product-catalog-service, order-service.
+#
+# NOTE: change the credentials below before any real deployment, or manage
+# this Secret with your secret store (Sealed Secrets / External Secrets / SOPS).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bakery-db-secret
+  namespace: bakery
+  labels:
+    app.kubernetes.io/part-of: crumb-and-ember
+type: Opaque
+stringData:
+  POSTGRES_USER: bakery
+  POSTGRES_PASSWORD: change-me-in-prod
+  POSTGRES_DB: bakery
+  # Consumed by the Node services:
+  DATABASE_URL: postgresql://bakery:change-me-in-prod@postgres:5432/bakery
+  AUTH_TOKEN_SECRET: change-me-too-a-long-random-string
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bakery-db-init
+  namespace: bakery
+  labels:
+    app.kubernetes.io/part-of: crumb-and-ember
+data:
+  init.sql: |
+    CREATE TABLE IF NOT EXISTS products (
+      id          TEXT PRIMARY KEY,
+      name        TEXT NOT NULL,
+      category    TEXT NOT NULL,
+      price       NUMERIC(8,2) NOT NULL,
+      description TEXT NOT NULL DEFAULT ''
+    );
+
+    CREATE TABLE IF NOT EXISTS profiles (
+      id      TEXT PRIMARY KEY,
+      name    TEXT NOT NULL,
+      email   TEXT UNIQUE NOT NULL,
+      address TEXT NOT NULL DEFAULT '',
+      dietary JSONB NOT NULL DEFAULT '[]'::jsonb
+    );
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      email         TEXT PRIMARY KEY,
+      user_id       TEXT UNIQUE NOT NULL,
+      name          TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE SEQUENCE IF NOT EXISTS order_seq START 1001;
+
+    CREATE TABLE IF NOT EXISTS orders (
+      id          TEXT PRIMARY KEY,
+      user_id     TEXT NOT NULL,
+      items       JSONB NOT NULL,
+      pickup_time TEXT,
+      status      TEXT NOT NULL DEFAULT 'received',
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_orders_user   ON orders (user_id);
+    CREATE INDEX IF NOT EXISTS idx_orders_status ON orders (status);
+    CREATE INDEX IF NOT EXISTS idx_products_cat  ON products (category);
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id                  TEXT PRIMARY KEY,
+      provider            TEXT NOT NULL DEFAULT 'mock',
+      order_id            TEXT NOT NULL,
+      razorpay_payment_id TEXT,
+      amount              NUMERIC(10,2) NOT NULL,
+      currency            TEXT NOT NULL DEFAULT 'INR',
+      method              TEXT,
+      status              TEXT NOT NULL DEFAULT 'created',
+      created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_payments_order  ON payments (order_id);
+    CREATE INDEX IF NOT EXISTS idx_payments_status ON payments (status);
+
+    INSERT INTO products (id, name, category, price, description) VALUES
+      ('p-1',  'Levain Country Loaf',   'bread',        8.50, '48-hour fermented sourdough, dark bake.'),
+      ('p-2',  'Seeded Rye',            'bread',        7.00, 'Dense Danish-style rye with sunflower and flax.'),
+      ('p-3',  'Butter Croissant',      'viennoiserie', 4.25, '27 layers of cultured butter.'),
+      ('p-4',  'Cardamom Knot',         'viennoiserie', 4.75, 'Swedish-style bun, freshly ground cardamom.'),
+      ('p-5',  'Pain au Chocolat',      'viennoiserie', 4.50, 'Two batons of 70% chocolate.'),
+      ('p-6',  'Morning Bun',           'viennoiserie', 4.50, 'Croissant dough, orange zest, muscovado.'),
+      ('p-7',  'Pistachio Financier',   'patisserie',   3.75, 'Brown-butter almond cake, Sicilian pistachio.'),
+      ('p-8',  'Sour Cherry Galette',   'patisserie',   6.25, 'Rye crust, whole sour cherries.'),
+      ('p-9',  'Canele',                'patisserie',   3.50, 'Rum and vanilla, caramelised copper-mould crust.'),
+      ('p-10', 'Baguette Tradition',    'bread',        3.90, 'Slow-fermented, thin crackling crust.'),
+      ('p-11', 'Focaccia al Rosmarino', 'bread',        5.50, 'Olive oil crumb, flaky salt, rosemary.'),
+      ('p-12', 'Espresso Walnut Babka', 'patisserie',   9.00, 'Twisted brioche, espresso frangipane.')
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO profiles (id, name, email, address, dietary) VALUES
+      ('u-1', 'Amelie Fournier', 'amelie@crumbandember.dev', '12 Rue du Levain', '["nut-free"]'),
+      ('u-2', 'Tomas Iversen',   'tomas@example.com',        '8 Rye Lane',        '[]')
+    ON CONFLICT (id) DO NOTHING;
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: bakery
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: bakery-db-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "bakery", "-d", "bakery"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "bakery", "-d", "bakery"]
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+      volumes:
+        - name: init
+          configMap:
+            name: bakery-db-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: bakery
+  labels:
+    app: postgres
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

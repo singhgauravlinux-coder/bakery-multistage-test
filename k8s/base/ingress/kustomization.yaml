@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Split out from the main base/kustomization.yaml on purpose: Ingress here
+# depends on the Traefik CRDs (Middleware) being installed in the cluster
+# first, so it's applied as its own step (see scripts/deploy.sh) rather than
+# bundled with the namespace/data/services bootstrap. Overlays pull this in
+# separately so they can still patch the host per environment.
+resources:
+  - ingress.yaml

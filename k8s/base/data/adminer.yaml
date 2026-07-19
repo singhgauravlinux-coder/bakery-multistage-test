@@ -1,0 +1,68 @@
+# Adminer — lightweight web UI for the database (the "DB frontend").
+# Reachable at http://db.bakery.local (see k8s/ingress.yaml) or via:
+#   kubectl -n bakery port-forward svc/adminer 8081:8080
+# Login: System=PostgreSQL, Server=postgres, User=bakery, DB=bakery.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: adminer
+  namespace: bakery
+  labels:
+    app: adminer
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: adminer
+  template:
+    metadata:
+      labels:
+        app: adminer
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: adminer
+          image: adminer:4
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ADMINER_DEFAULT_SERVER
+              value: postgres
+            - name: ADMINER_DESIGN
+              value: dracula
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: adminer
+  namespace: bakery
+  labels:
+    app: adminer
+spec:
+  selector:
+    app: adminer
+  ports:
+    - port: 8080
+      targetPort: 8080

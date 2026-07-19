@@ -1,0 +1,26 @@
+# Register with: kubectl apply -f argocd/uat-app.yaml --namespace argocd
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bakery-uat
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/singhgauravlinux-coder/bakery-multistage.git
+    targetRevision: main
+    path: k8s/overlays/uat
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bakery-uat
+  syncPolicy:
+    # The promotion gate for uat already happened in GitHub (the bump-uat
+    # job sits behind the "uat" Environment's required reviewers), so it's
+    # safe for Argo to auto-apply once that commit lands.
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

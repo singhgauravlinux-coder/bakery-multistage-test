@@ -1,0 +1,69 @@
+name: Bump one service's image tag
+description: >
+  Pins a single service's image tag in its Kustomize overlay and commits the
+  change to main. That's the entire hand-off to CD: Argo CD watches this
+  repo's k8s/overlays/<env> paths and applies the resulting diff itself.
+  This action never touches a cluster and needs no kubeconfig.
+
+inputs:
+  service:
+    required: true
+    description: Directory name under services/, e.g. auth-service
+  environment:
+    required: true
+    description: dev | uat | production
+  overlay:
+    required: true
+    description: Path to the kustomize overlay, e.g. k8s/overlays/dev
+  image_tag:
+    required: true
+    description: Short SHA the build job pushed
+
+runs:
+  using: composite
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        ref: main
+
+    - name: Set up kustomize
+      uses: imranismail/setup-kustomize@v2
+
+    - name: Pin ${{ inputs.service }} image for ${{ inputs.environment }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        REPO="${GITHUB_REPOSITORY,,}"   # ghcr requires lowercase
+        IMAGE="ghcr.io/${REPO}/${{ inputs.service }}"
+        cd "${{ inputs.overlay }}"
+        kustomize edit set image "${IMAGE}=${IMAGE}:${{ inputs.image_tag }}"
+
+    - name: Commit overlay change
+      shell: bash
+      run: |
+        set -euo pipefail
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        if git diff --quiet -- "${{ inputs.overlay }}/kustomization.yaml"; then
+          echo "Image already pinned to ${{ inputs.image_tag }} — nothing to commit."
+          exit 0
+        fi
+        git add "${{ inputs.overlay }}/kustomization.yaml"
+        git commit -m "ci(${{ inputs.service }}): bump ${{ inputs.environment }} to ${{ inputs.image_tag }} [skip ci]"
+
+        # main can move between our checkout and our push (other services'
+        # bump jobs, manual commits, etc.), so retry with a rebase instead
+        # of failing outright.
+        for attempt in 1 2 3 4 5; do
+          if git push origin main; then
+            exit 0
+          fi
+          echo "Push rejected (attempt ${attempt}/5), fetching and rebasing..."
+          sleep $(( RANDOM % 5 + 1 ))
+          git fetch origin main
+          git rebase origin/main
+        done
+
+        echo "Failed to push after 5 attempts." >&2
+        exit 1

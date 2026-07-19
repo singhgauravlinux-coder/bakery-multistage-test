@@ -1,0 +1,21 @@
+{
+  "name": "payment-service",
+  "description": "Payments via Razorpay (mock fallback when keys unset)",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pino": "^9.3.2",
+    "pino-http": "^10.3.0",
+    "pg": "^8.12.0",
+    "razorpay": "^2.9.4"
+  }
+}

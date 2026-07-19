@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Crumb &amp; Ember — Neighborhood Bakery</title>
+<meta name="description" content="Slow-fermented breads and viennoiserie, baked through the day. See what's coming out of the oven and order for pickup." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Karla:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --espresso: #231712;
+    --char: #1a100c;
+    --flour: #f7efe2;
+    --flour-dim: #cfc2ad;
+    --butter: #e9b44c;
+    --pistachio: #9da65d;
+    --jam: #a63a3a;
+    --line: rgba(247, 239, 226, 0.14);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--espresso);
+    color: var(--flour);
+    font-family: 'Karla', sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(35, 23, 18, 0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; gap: 20px; padding: 14px 24px; max-width: 1120px; margin: 0 auto; }
+  .brand { font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.35rem; text-decoration: none; letter-spacing: 0.01em; white-space: nowrap; }
+  .brand em { font-style: normal; color: var(--butter); }
+  nav ul { display: flex; gap: 24px; list-style: none; }
+  nav a { text-decoration: none; font-size: 0.95rem; color: var(--flour-dim); transition: color 160ms; }
+  nav a:hover, nav a:focus-visible { color: var(--butter); }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--butter); outline-offset: 2px; border-radius: 2px; }
+  .nav .spacer { flex: 1; }
+  .search-box { position: relative; }
+  .search-box input {
+    background: var(--char); border: 1px solid var(--line); color: var(--flour);
+    border-radius: 999px; padding: 8px 16px; font-family: 'Karla', sans-serif; font-size: 0.88rem; width: 200px;
+    transition: border-color 160ms, width 200ms;
+  }
+  .search-box input:focus { border-color: var(--butter); width: 240px; }
+  .icon-btn {
+    position: relative; background: transparent; border: 1px solid var(--line); color: var(--flour);
+    border-radius: 999px; padding: 8px 16px; font-family: 'Karla', sans-serif; font-weight: 700;
+    font-size: 0.88rem; cursor: pointer; transition: border-color 160ms, color 160ms; white-space: nowrap;
+  }
+  .icon-btn:hover { border-color: var(--butter); color: var(--butter); }
+  .badge {
+    position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; border-radius: 999px;
+    background: var(--jam); color: var(--flour); font-size: 0.7rem; font-weight: 700;
+    display: none; align-items: center; justify-content: center; padding: 0 5px; font-family: 'JetBrains Mono', monospace;
+  }
+  .badge.show { display: inline-flex; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 88px 0 64px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--pistachio); margin-bottom: 20px;
+  }
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: clamp(2.6rem, 6.5vw, 4.6rem);
+    line-height: 1.06;
+    letter-spacing: -0.01em;
+    max-width: 15ch;
+  }
+  h1 .lit { color: var(--butter); }
+  .hero p { max-width: 52ch; margin-top: 24px; color: var(--flour-dim); font-size: 1.08rem; }
+  .hero-actions { margin-top: 36px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 13px 26px; border-radius: 999px;
+    font-weight: 700; font-size: 0.95rem; text-decoration: none; border: 1px solid transparent;
+    cursor: pointer; transition: transform 160ms, background 160ms; font-family: 'Karla', sans-serif;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--butter); color: var(--char); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-ghost { border-color: var(--line); color: var(--flour); background: transparent; }
+  .btn-ghost:hover { border-color: var(--butter); }
+
+  /* ---------- oven rail ---------- */
+  .oven-rail { border-bottom: 1px solid var(--line); background: var(--char); overflow: hidden; }
+  .oven-rail-head { display: flex; align-items: baseline; gap: 14px; padding: 20px 24px 0; max-width: 1120px; margin: 0 auto; }
+  .oven-rail-head h2 { font-family: 'Fraunces', serif; font-size: 1.15rem; font-weight: 600; }
+  .live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--jam); margin-right: 8px; animation: pulse 2.4s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
+  .oven-rail-head small { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--flour-dim); letter-spacing: 0.1em; }
+  .rail-scroll { display: flex; gap: 0; overflow-x: auto; padding: 18px 24px 26px; max-width: 1120px; margin: 0 auto; scrollbar-width: thin; }
+  .bake { min-width: 190px; padding: 14px 18px; border-left: 1px solid var(--line); }
+  .bake:last-child { border-right: 1px solid var(--line); }
+  .bake time { font-family: 'JetBrains Mono', monospace; font-size: 1.5rem; font-weight: 600; color: var(--butter); font-variant-numeric: tabular-nums; }
+  .bake .what { margin-top: 6px; font-size: 0.92rem; }
+  .bake .batch { margin-top: 2px; font-size: 0.78rem; color: var(--flour-dim); font-family: 'JetBrains Mono', monospace; }
+  .bake.done time { color: var(--flour-dim); text-decoration: line-through; text-decoration-thickness: 1px; }
+
+  /* ---------- sections ---------- */
+  section { padding: 72px 0; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 20px; margin-bottom: 36px; flex-wrap: wrap; }
+  h2.big { font-family: 'Fraunces', serif; font-weight: 600; font-size: clamp(1.8rem, 3.5vw, 2.6rem); }
+  .section-head p { color: var(--flour-dim); max-width: 40ch; }
+
+  /* ---------- products ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .card { background: var(--espresso); padding: 26px 24px 24px; display: flex; flex-direction: column; gap: 10px; transition: background 180ms; }
+  .card:hover { background: var(--char); }
+  .card .cat { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--pistachio); display: flex; justify-content: space-between; }
+  .stock { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; letter-spacing: 0.05em; }
+  .stock.in_stock { color: var(--pistachio); }
+  .stock.low { color: var(--butter); }
+  .stock.sold_out { color: var(--jam); }
+  .card h3 { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.3rem; }
+  .card > p { font-size: 0.9rem; color: var(--flour-dim); flex: 1; }
+  .card .row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 8px; }
+  .price { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--butter); font-variant-numeric: tabular-nums; }
+  .add, .rev-toggle {
+    background: transparent; border: 1px solid var(--line); color: var(--flour);
+    border-radius: 999px; padding: 7px 16px; font-family: 'Karla', sans-serif; font-weight: 700;
+    font-size: 0.82rem; cursor: pointer; transition: all 160ms;
+  }
+  .add:hover, .rev-toggle:hover { border-color: var(--butter); color: var(--butter); }
+  .add.added { background: var(--pistachio); border-color: var(--pistachio); color: var(--char); }
+  .add:disabled { opacity: 0.4; cursor: not-allowed; }
+  .rev-toggle { font-size: 0.72rem; padding: 5px 12px; color: var(--flour-dim); }
+  .reviews { border-top: 1px dashed var(--line); padding-top: 10px; margin-top: 6px; display: none; }
+  .reviews.open { display: block; }
+  .review { font-size: 0.82rem; color: var(--flour-dim); margin-bottom: 8px; }
+  .review .stars { color: var(--butter); font-size: 0.75rem; letter-spacing: 2px; }
+  .review-form { display: flex; gap: 6px; margin-top: 8px; }
+  .review-form select, .review-form input {
+    background: var(--char); border: 1px solid var(--line); color: var(--flour);
+    border-radius: 6px; padding: 5px 8px; font-size: 0.8rem; font-family: 'Karla', sans-serif;
+  }
+  .review-form input { flex: 1; }
+  .review-form button { background: transparent; border: 1px solid var(--line); color: var(--flour); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-size: 0.78rem; }
+
+  /* ---------- drawers & modal ---------- */
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 100vw); z-index: 40;
+    background: var(--char); border-left: 1px solid var(--line);
+    transform: translateX(105%); transition: transform 240ms ease; display: flex; flex-direction: column;
+    box-shadow: -24px 0 60px rgba(0,0,0,0.45);
+  }
+  .drawer.open { transform: translateX(0); }
+  .drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px; border-bottom: 1px solid var(--line); }
+  .drawer-head h3 { font-family: 'Fraunces', serif; font-size: 1.2rem; }
+  .drawer-close { background: none; border: none; color: var(--flour-dim); font-size: 1.4rem; cursor: pointer; line-height: 1; }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 18px 22px; }
+  .drawer-foot { border-top: 1px solid var(--line); padding: 18px 22px; }
+  .cart-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--line); font-size: 0.92rem; }
+  .cart-item .n { flex: 1; }
+  .cart-item .q { font-family: 'JetBrains Mono', monospace; color: var(--flour-dim); font-size: 0.8rem; }
+  .cart-item .rm { background: none; border: none; color: var(--jam); cursor: pointer; font-size: 1rem; }
+  .totals { font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--flour-dim); margin-bottom: 12px; }
+  .totals .row2 { display: flex; justify-content: space-between; padding: 2px 0; }
+  .totals .gross { color: var(--butter); font-weight: 600; font-size: 1rem; border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; }
+  .promo-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .promo-row input { flex: 1; background: var(--espresso); border: 1px solid var(--line); color: var(--flour); border-radius: 8px; padding: 8px 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; text-transform: uppercase; }
+  .promo-row button { background: transparent; border: 1px solid var(--line); color: var(--flour); border-radius: 8px; padding: 8px 14px; cursor: pointer; font-weight: 700; font-size: 0.82rem; }
+  .addr-row input { width: 100%; background: var(--espresso); border: 1px solid var(--line); color: var(--flour); border-radius: 8px; padding: 8px 12px; font-size: 0.85rem; margin-bottom: 12px; font-family: 'Karla', sans-serif; }
+  .hint { font-size: 0.75rem; color: var(--flour-dim); margin-top: 8px; }
+  .hint.ok { color: var(--pistachio); }
+  .hint.err { color: var(--jam); }
+
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 30; display: none; }
+  .overlay.show { display: block; }
+  .modal {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 50;
+    background: var(--char); border: 1px solid var(--line); border-radius: 14px;
+    width: min(400px, calc(100vw - 32px)); padding: 28px; display: none;
+  }
+  .modal.show { display: block; }
+  .modal h3 { font-family: 'Fraunces', serif; font-size: 1.4rem; margin-bottom: 4px; }
+  .modal .sub { color: var(--flour-dim); font-size: 0.85rem; margin-bottom: 18px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tabs button { flex: 1; background: transparent; border: 1px solid var(--line); color: var(--flour-dim); border-radius: 8px; padding: 8px; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
+  .tabs button.active { border-color: var(--butter); color: var(--butter); }
+  .modal label { display: block; font-size: 0.78rem; color: var(--flour-dim); margin-bottom: 4px; margin-top: 12px; font-family: 'JetBrains Mono', monospace; letter-spacing: 0.06em; }
+  .modal input { width: 100%; background: var(--espresso); border: 1px solid var(--line); color: var(--flour); border-radius: 8px; padding: 10px 12px; font-size: 0.92rem; font-family: 'Karla', sans-serif; }
+  .modal .btn { width: 100%; margin-top: 20px; }
+
+  /* ---------- account ---------- */
+  .acct-block { margin-bottom: 20px; }
+  .acct-block h4 { font-family: 'Fraunces', serif; font-size: 1rem; margin-bottom: 8px; color: var(--butter); }
+  .order-row { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; font-size: 0.85rem; }
+  .order-row .mono { color: var(--flour-dim); font-size: 0.72rem; }
+  .order-row .st { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; color: var(--pistachio); margin-left: 6px; }
+  .chip { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; font-size: 0.78rem; margin: 2px 4px 2px 0; color: var(--flour-dim); }
+
+  /* ---------- craft & footer ---------- */
+  .craft { border-top: 1px solid var(--line); }
+  .craft-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 48px; }
+  .craft-item h3 { font-family: 'Fraunces', serif; font-size: 1.25rem; font-weight: 600; margin-bottom: 10px; }
+  .craft-item .k { font-family: 'JetBrains Mono', monospace; color: var(--butter); font-size: 1.9rem; font-weight: 600; display: block; margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+  .craft-item p { color: var(--flour-dim); font-size: 0.95rem; }
+  footer { border-top: 1px solid var(--line); padding: 48px 0 60px; color: var(--flour-dim); font-size: 0.9rem; }
+  .foot { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  footer .brand { font-size: 1.1rem; color: var(--flour); }
+  .status-line { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; margin-top: 10px; }
+  .status-line .ok { color: var(--pistachio); }
+  #service-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 3px 14px; margin-top: 10px; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
+
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); z-index: 60;
+    background: var(--flour); color: var(--char); border-radius: 999px; padding: 10px 22px;
+    font-weight: 700; font-size: 0.88rem; transition: transform 240ms; pointer-events: none; max-width: calc(100vw - 40px);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    html { scroll-behavior: auto; }
+  }
+  @media (max-width: 760px) {
+    nav ul { display: none; }
+    .search-box input { width: 130px; }
+    .hero { padding: 60px 0 44px; }
+    section { padding: 52px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav">
+    <a class="brand" href="#">Crumb <em>&amp;</em> Ember</a>
+    <nav aria-label="Main">
+      <ul>
+        <li><a href="#oven">Today's bakes</a></li>
+        <li><a href="#shop">Shop</a></li>
+        <li><a href="#craft">The craft</a></li>
+      </ul>
+    </nav>
+    <span class="spacer"></span>
+    <div class="search-box">
+      <input id="search" type="search" placeholder="Search the counter…" aria-label="Search products" autocomplete="off" />
+    </div>
+    <button class="icon-btn" id="account-btn" aria-haspopup="dialog">Sign in</button>
+    <button class="icon-btn" id="cart-btn" aria-haspopup="dialog" aria-label="Open basket">
+      🧺 Basket <span class="badge" id="cart-badge">0</span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <p class="eyebrow">Neighborhood bakery — est. on a wood table</p>
+      <h1>Baked through the day, <span class="lit">never before dawn only.</span></h1>
+      <p>Most bakeries finish by sunrise. We keep the oven lit until close — baguettes at 6:30 and again at 3:30, galettes after lunch. Check the rail below to catch a loaf while it's still warm.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#shop">Order for pickup</a>
+        <a class="btn btn-ghost" href="#oven">What's in the oven</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="oven-rail" id="oven">
+    <div class="oven-rail-head">
+      <h2><span class="live-dot" aria-hidden="true"></span>Out of the oven today</h2>
+      <small id="schedule-date">SCHEDULE</small>
+    </div>
+    <div class="rail-scroll" id="rail" role="list"></div>
+  </div>
+
+  <section id="shop">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 class="big">The counter</h2>
+        <p>Everything below is baked in-house from stone-milled flour. Live stock from the inventory service, prices from pricing, reviews from customers like you.</p>
+      </div>
+      <div class="grid" id="products"></div>
+      <p class="hint" id="reco-line" style="margin-top:16px"></p>
+    </div>
+  </section>
+
+  <section class="craft" id="craft">
+    <div class="wrap">
+      <div class="section-head"><h2 class="big">Slow numbers</h2></div>
+      <div class="craft-grid">
+        <div class="craft-item"><span class="k">48h</span><h3>Fermentation</h3><p>Our country loaf proofs for two full days. Time does the flavor work that yeast alone can't.</p></div>
+        <div class="craft-item"><span class="k">27</span><h3>Butter layers</h3><p>Every croissant is laminated by hand with cultured butter from a single alpine dairy.</p></div>
+        <div class="craft-item"><span class="k">8</span><h3>Bakes a day</h3><p>Small batches, staggered from 6:30 to 15:30, so the shelf is never more than a few hours old.</p></div>
+        <div class="craft-item"><span class="k">3</span><h3>Suppliers</h3><p>One mill, one dairy, one orchard. We know the people behind every ingredient by name.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer id="visit">
+  <div class="wrap foot">
+    <div>
+      <a class="brand" href="#">Crumb <em>&amp;</em> Ember</a>
+      <p>12 Rue du Levain · Tue–Sun, 7:00–18:00</p>
+      <p class="status-line">platform: <span class="ok" id="platform-status">checking…</span></p>
+      <p class="status-line"><a href="/api/docs">API docs (Swagger UI)</a> · <a href="/api/status">raw status</a> · <a href="/api">route index</a></p>
+    </div>
+    <div style="min-width:280px">
+      <p>Wholesale &amp; standing orders: hello@crumbandember.dev</p>
+      <p>Day-old shelf discounted 50% after 17:00 — try promo <span class="mono" style="color:var(--butter)">DAYOLD50</span>.</p>
+      <div id="service-grid" aria-label="Service health"></div>
+    </div>
+  </div>
+</footer>
+
+<!-- ======================= basket drawer (cart-service) ======================= -->
+<div class="overlay" id="overlay"></div>
+
+<aside class="drawer" id="cart-drawer" role="dialog" aria-label="Basket">
+  <div class="drawer-head">
+    <h3>Your basket</h3>
+    <button class="drawer-close" data-close aria-label="Close">×</button>
+  </div>
+  <div class="drawer-body" id="cart-items"><p class="hint">Basket is empty.</p></div>
+  <div class="drawer-foot">
+    <div class="totals" id="cart-totals"></div>
+    <div class="promo-row">
+      <input id="promo-input" placeholder="PROMO CODE" aria-label="Promo code" />
+      <button id="promo-apply">Apply</button>
+    </div>
+    <div class="addr-row">
+      <input id="delivery-addr" placeholder="Delivery address (leave empty for counter pickup)" aria-label="Delivery address" />
+    </div>
+    <button class="btn btn-primary" id="checkout-btn" style="width:100%">Checkout</button>
+    <p class="hint" id="checkout-hint"></p>
+  </div>
+</aside>
+
+<!-- ======================= account drawer ======================= -->
+<aside class="drawer" id="account-drawer" role="dialog" aria-label="Account">
+  <div class="drawer-head">
+    <h3 id="acct-title">Account</h3>
+    <button class="drawer-close" data-close aria-label="Close">×</button>
+  </div>
+  <div class="drawer-body">
+    <div class="acct-block">
+      <h4>Loyalty <span class="mono" style="font-size:.7rem;color:var(--flour-dim)">loyalty-service</span></h4>
+      <p id="loyalty-line" class="hint">—</p>
+    </div>
+    <div class="acct-block">
+      <h4>We think you'd like <span class="mono" style="font-size:.7rem;color:var(--flour-dim)">recommendation-service</span></h4>
+      <div id="acct-recos"></div>
+    </div>
+    <div class="acct-block">
+      <h4>My orders <span class="mono" style="font-size:.7rem;color:var(--flour-dim)">order + delivery + payment</span></h4>
+      <div id="order-list"><p class="hint">No orders yet.</p></div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" id="logout-btn" style="width:100%">Sign out</button>
+  </div>
+</aside>
+
+<!-- ======================= auth modal (auth-service) ======================= -->
+<div class="modal" id="auth-modal" role="dialog" aria-label="Sign in or register">
+  <h3>Welcome back</h3>
+  <p class="sub">Powered by auth-service · scrypt-hashed, HMAC tokens</p>
+  <div class="tabs">
+    <button id="tab-login" class="active">Sign in</button>
+    <button id="tab-register">Register</button>
+  </div>
+  <div id="pane-register" style="display:none">
+    <label for="reg-name">NAME</label>
+    <input id="reg-name" autocomplete="name" />
+  </div>
+  <label for="auth-email">EMAIL</label>
+  <input id="auth-email" type="email" autocomplete="email" placeholder="amelie@crumbandember.dev" />
+  <label for="auth-pass">PASSWORD</label>
+  <input id="auth-pass" type="password" autocomplete="current-password" placeholder="baguette (demo)" />
+  <button class="btn btn-primary" id="auth-submit">Sign in</button>
+  <p class="hint" id="auth-hint"></p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+  var API = '/api';
+
+  // ------------------------------------------------------------ state
+  var session = null;              // { token, userId, name }
+  var products = [];               // from product-catalog-service
+  var productById = {};
+  var cart = [];                   // [{ productId, quantity }]
+  var promo = null;                // { code, percentOff }
+  var authMode = 'login';
+
+  try { session = JSON.parse(localStorage.getItem('crumb.session') || 'null'); } catch (e) { session = null; }
+  function cartUser() { return session ? session.userId : 'guest'; }
+
+  // ------------------------------------------------------------ helpers
+  function getJSON(path) {
+    return fetch(API + path, { headers: { accept: 'application/json' } })
+      .then(function (r) { return r.json().then(function (b) { if (!r.ok) throw b; return b; }); });
+  }
+  function sendJSON(method, path, body) {
+    return fetch(API + path, {
+      method: method,
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw b; return b; }); });
+  }
+  function toast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._h);
+    t._h = setTimeout(function () { t.classList.remove('show'); }, 2600);
+  }
+  function track(type, payload) { // analytics-service, fire and forget
+    sendJSON('POST', '/events', { type: type, payload: payload || {} }).catch(function () {});
+  }
+  function euro(n) { return '€' + Number(n).toFixed(2); }
+
+  // ------------------------------------------------------------ drawers & modal
+  var overlay = document.getElementById('overlay');
+  function openPanel(id) {
+    document.querySelectorAll('.drawer.open, .modal.show').forEach(function (el) { el.classList.remove('open', 'show'); });
+    var el = document.getElementById(id);
+    el.classList.add(el.classList.contains('modal') ? 'show' : 'open');
+    overlay.classList.add('show');
+  }
+  function closePanels() {
+    document.querySelectorAll('.drawer.open, .modal.show').forEach(function (el) { el.classList.remove('open', 'show'); });
+    overlay.classList.remove('show');
+  }
+  overlay.addEventListener('click', closePanels);
+  document.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', closePanels); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePanels(); });
+
+  // ------------------------------------------------------------ auth (auth-service)
+  var accountBtn = document.getElementById('account-btn');
+  function renderAuthState() {
+    accountBtn.textContent = session ? ('👤 ' + (session.name || session.userId)) : 'Sign in';
+  }
+  accountBtn.addEventListener('click', function () {
+    if (!session) { openPanel('auth-modal'); return; }
+    openAccount();
+  });
+
+  document.getElementById('tab-login').addEventListener('click', function () { setAuthMode('login'); });
+  document.getElementById('tab-register').addEventListener('click', function () { setAuthMode('register'); });
+  function setAuthMode(mode) {
+    authMode = mode;
+    document.getElementById('tab-login').classList.toggle('active', mode === 'login');
+    document.getElementById('tab-register').classList.toggle('active', mode === 'register');
+    document.getElementById('pane-register').style.display = mode === 'register' ? 'block' : 'none';
+    document.getElementById('auth-submit').textContent = mode === 'login' ? 'Sign in' : 'Create account';
+    document.getElementById('auth-hint').textContent = '';
+  }
+
+  document.getElementById('auth-submit').addEventListener('click', function () {
+    var email = document.getElementById('auth-email').value.trim();
+    var pass = document.getElementById('auth-pass').value;
+    var hint = document.getElementById('auth-hint');
+    if (!email || !pass) { hint.className = 'hint err'; hint.textContent = 'Email and password are required.'; return; }
+
+    if (authMode === 'register') {
+      sendJSON('POST', '/auth/register', { email: email, password: pass, name: document.getElementById('reg-name').value.trim() })
+        .then(function () {
+          hint.className = 'hint ok'; hint.textContent = 'Account created — signing you in…';
+          return doLogin(email, pass);
+        })
+        .catch(function (e) { hint.className = 'hint err'; hint.textContent = e.error || 'Registration failed.'; });
+    } else {
+      doLogin(email, pass).catch(function (e) {
+        hint.className = 'hint err'; hint.textContent = e.error || 'Sign-in failed.';
+      });
+    }
+  });
+
+  function doLogin(email, pass) {
+    return sendJSON('POST', '/auth/login', { email: email, password: pass }).then(function (data) {
+      var guestItems = cart.slice();
+      session = { token: data.token, userId: data.userId, name: data.name || email.split('@')[0] };
+      localStorage.setItem('crumb.session', JSON.stringify(session));
+      renderAuthState();
+      closePanels();
+      toast('Signed in as ' + session.name);
+      track('login', { userId: session.userId });
+      // merge guest basket into the account basket (cart-service)
+      return Promise.all(guestItems.map(function (i) {
+        return sendJSON('POST', '/carts/' + session.userId + '/items', { productId: i.productId, quantity: i.quantity }).catch(function () {});
+      })).then(function () {
+        if (guestItems.length) return sendJSON('DELETE', '/carts/guest').catch(function () {});
+      }).then(loadCart);
+    });
+  }
+
+  document.getElementById('logout-btn').addEventListener('click', function () {
+    session = null;
+    localStorage.removeItem('crumb.session');
+    renderAuthState();
+    closePanels();
+    loadCart();
+    toast('Signed out');
+  });
+
+  // verify persisted token on load (auth-service /verify)
+  if (session) {
+    fetch(API + '/auth/verify', { headers: { authorization: 'Bearer ' + session.token } })
+      .then(function (r) { if (!r.ok) throw 0; renderAuthState(); })
+      .catch(function () { session = null; localStorage.removeItem('crumb.session'); renderAuthState(); });
+  }
+  renderAuthState();
+
+  // ------------------------------------------------------------ oven rail (baking-schedule-service)
+  var FALLBACK_SCHEDULE = [
+    { time: '06:30', product: 'Baguette Tradition', batch: 40 },
+    { time: '07:00', product: 'Butter Croissant', batch: 60 },
+    { time: '08:00', product: 'Levain Country Loaf', batch: 24 },
+    { time: '13:00', product: 'Sour Cherry Galette', batch: 12 }
+  ];
+  function renderSchedule(bakes, dateLabel) {
+    var rail = document.getElementById('rail');
+    var nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
+    rail.innerHTML = '';
+    bakes.forEach(function (b) {
+      var parts = b.time.split(':');
+      var mins = parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+      var el = document.createElement('div');
+      el.className = 'bake' + (mins < nowMinutes ? ' done' : '');
+      el.setAttribute('role', 'listitem');
+      el.innerHTML = '<time>' + b.time + '</time><div class="what"></div><div class="batch">batch of ' + b.batch + '</div>';
+      el.querySelector('.what').textContent = b.product;
+      rail.appendChild(el);
+    });
+    document.getElementById('schedule-date').textContent = dateLabel;
+  }
+  getJSON('/schedule/today')
+    .then(function (d) { renderSchedule(d.bakes, d.date); })
+    .catch(function () { renderSchedule(FALLBACK_SCHEDULE, 'OFFLINE PREVIEW'); });
+
+  // ------------------------------------------------------------ catalog (product + inventory + review services)
+  function renderProducts(list) {
+    var grid = document.getElementById('products');
+    grid.innerHTML = '';
+    if (!list.length) { grid.innerHTML = '<div class="card"><p>No products match.</p></div>'; return; }
+    list.forEach(function (p) {
+      var card = document.createElement('article');
+      card.className = 'card';
+      card.dataset.id = p.id;
+      card.innerHTML =
+        '<span class="cat"><span></span><span class="stock" data-stock>stock…</span></span>' +
+        '<h3></h3><p></p>' +
+        '<div class="row"><span class="price">' + euro(p.price) + '</span>' +
+        '<span><button class="rev-toggle" type="button">reviews</button> ' +
+        '<button class="add" type="button">Add to basket</button></span></div>' +
+        '<div class="reviews"></div>';
+      card.querySelector('.cat span').textContent = p.category;
+      card.querySelector('h3').textContent = p.name;
+      card.querySelector('.card > p, p').textContent = p.description;
+      card.querySelector('.add').addEventListener('click', function () { addToCart(p, this); });
+      card.querySelector('.rev-toggle').addEventListener('click', function () { toggleReviews(card, p); });
+      grid.appendChild(card);
+      loadStock(card, p.id);
+    });
+  }
+
+  function loadStock(card, productId) {  // inventory-service
+    getJSON('/stock/' + productId).then(function (s) {
+      var el = card.querySelector('[data-stock]');
+      el.className = 'stock ' + s.status;
+      el.textContent = s.status === 'sold_out' ? 'sold out' : s.status === 'low' ? 'only ' + s.quantity + ' left' : s.quantity + ' in stock';
+      if (s.status === 'sold_out') card.querySelector('.add').disabled = true;
+    }).catch(function () { card.querySelector('[data-stock]').textContent = ''; });
+  }
+
+  function toggleReviews(card, p) {  // review-service
+    var box = card.querySelector('.reviews');
+    if (box.classList.contains('open')) { box.classList.remove('open'); return; }
+    box.classList.add('open');
+    box.innerHTML = '<p class="hint">Loading reviews…</p>';
+    getJSON('/reviews/' + p.id).then(function (list) {
+      box.innerHTML = '';
+      if (!list.length) box.innerHTML = '<p class="hint">No reviews yet — be the first.</p>';
+      list.forEach(function (r) {
+        var el = document.createElement('div');
+        el.className = 'review';
+        el.innerHTML = '<span class="stars">' + '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating) + '</span> <span></span>';
+        el.querySelector('span + span').textContent = r.text;
+        box.appendChild(el);
+      });
+      var form = document.createElement('div');
+      form.className = 'review-form';
+      form.innerHTML = '<select aria-label="Rating"><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option></select>' +
+                       '<input placeholder="Say something about the ' + p.name.toLowerCase() + '…" aria-label="Review text" />' +
+                       '<button type="button">Post</button>';
+      form.querySelector('button').addEventListener('click', function () {
+        var text = form.querySelector('input').value.trim();
+        var rating = Number(form.querySelector('select').value);
+        sendJSON('POST', '/reviews', { productId: p.id, userId: cartUser(), rating: rating, text: text })
+          .then(function () { toast('Review posted — thank you!'); box.classList.remove('open'); track('review_posted', { productId: p.id }); })
+          .catch(function () { toast('Could not post review'); });
+      });
+      box.appendChild(form);
+    }).catch(function () { box.innerHTML = '<p class="hint err">review-service unreachable.</p>'; });
+  }
+
+  getJSON('/products').then(function (list) {
+    products = list;
+    productById = {};
+    list.forEach(function (p) { productById[p.id] = p; });
+    renderProducts(list);
+    loadRecommendations();
+  }).catch(function () {
+    document.getElementById('products').innerHTML =
+      '<div class="card"><h3>Catalog unavailable</h3><p>product-catalog-service is unreachable — check <a href="/api/status">/api/status</a>.</p></div>';
+  });
+
+  // ------------------------------------------------------------ search (search-service)
+  var searchTimer = null;
+  document.getElementById('search').addEventListener('input', function () {
+    var q = this.value.trim();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      if (!q) { renderProducts(products); return; }
+      getJSON('/search?q=' + encodeURIComponent(q)).then(function (res) {
+        var ids = {};
+        (res.hits || []).forEach(function (h) { ids[h.id] = true; });
+        renderProducts(products.filter(function (p) { return ids[p.id]; }));
+        track('search', { query: q, hits: (res.hits || []).length });
+      }).catch(function () {
+        var ql = q.toLowerCase();  // client-side fallback
+        renderProducts(products.filter(function (p) { return (p.name + p.category + p.description).toLowerCase().indexOf(ql) >= 0; }));
+      });
+    }, 250);
+  });
+
+  // ------------------------------------------------------------ recommendations (recommendation-service)
+  function loadRecommendations() {
+    getJSON('/recommendations/' + cartUser()).then(function (r) {
+      var names = (r.productIds || []).map(function (id) { return productById[id] ? productById[id].name : id; });
+      if (names.length) document.getElementById('reco-line').textContent = 'Pairs well today: ' + names.join(' · ');
+    }).catch(function () {});
+  }
+
+  // ------------------------------------------------------------ basket (cart + pricing + promotion services)
+  var cartBtn = document.getElementById('cart-btn');
+  cartBtn.addEventListener('click', function () { openPanel('cart-drawer'); renderCart(); });
+
+  function loadCart() {
+    return getJSON('/carts/' + cartUser()).then(function (c) {
+      cart = c.items || [];
+      renderBadge();
+      renderCart();
+    }).catch(function () { renderBadge(); });
+  }
+
+  function addToCart(p, btn) {
+    if (btn) { btn.textContent = 'Added ✓'; btn.classList.add('added'); setTimeout(function () { btn.textContent = 'Add to basket'; btn.classList.remove('added'); }, 1500); }
+    sendJSON('POST', '/carts/' + cartUser() + '/items', { productId: p.id, quantity: 1 })
+      .then(function (c) { cart = c.items; renderBadge(); renderCart(); track('cart_add', { productId: p.id }); })
+      .catch(function () { toast('cart-service unreachable'); });
+  }
+
+  function removeFromCart(productId) {
+    sendJSON('DELETE', '/carts/' + cartUser() + '/items/' + productId)
+      .then(function (c) { cart = c.items; renderBadge(); renderCart(); })
+      .catch(function () { toast('cart-service unreachable'); });
+  }
+
+  function renderBadge() {
+    var n = cart.reduce(function (s, i) { return s + i.quantity; }, 0);
+    var b = document.getElementById('cart-badge');
+    b.textContent = n;
+    b.classList.toggle('show', n > 0);
+  }
+
+  function renderCart() {
+    var box = document.getElementById('cart-items');
+    box.innerHTML = '';
+    if (!cart.length) {
+      box.innerHTML = '<p class="hint">Basket is empty — the croissants miss you.</p>';
+      document.getElementById('cart-totals').innerHTML = '';
+      return;
+    }
+    cart.forEach(function (i) {
+      var p = productById[i.productId] || { name: i.productId, price: 0 };
+      var row = document.createElement('div');
+      row.className = 'cart-item';
+      row.innerHTML = '<span class="n"></span><span class="q">×' + i.quantity + '</span>' +
+                      '<span class="price">' + euro(p.price * i.quantity) + '</span>' +
+                      '<button class="rm" aria-label="Remove">✕</button>';
+      row.querySelector('.n').textContent = p.name;
+      row.querySelector('.rm').addEventListener('click', function () { removeFromCart(i.productId); });
+      box.appendChild(row);
+    });
+    refreshQuote();
+  }
+
+  function refreshQuote() {  // pricing-service /quote
+    sendJSON('POST', '/quote', { items: cart }).then(function (q) {
+      var discount = promo ? q.gross * promo.percentOff / 100 : 0;
+      var total = q.gross - discount;
+      document.getElementById('cart-totals').innerHTML =
+        '<div class="row2"><span>Net</span><span>' + euro(q.net) + '</span></div>' +
+        '<div class="row2"><span>VAT</span><span>' + euro(q.vat) + '</span></div>' +
+        (promo ? '<div class="row2"><span>Promo ' + promo.code + ' (−' + promo.percentOff + '%)</span><span>−' + euro(discount) + '</span></div>' : '') +
+        '<div class="row2 gross"><span>Total</span><span>' + euro(total) + '</span></div>';
+      document.getElementById('cart-totals').dataset.total = total.toFixed(2);
+    }).catch(function () {
+      var net = cart.reduce(function (s, i) { return s + ((productById[i.productId] || {}).price || 0) * i.quantity; }, 0);
+      document.getElementById('cart-totals').innerHTML = '<div class="row2 gross"><span>Total (offline est.)</span><span>' + euro(net) + '</span></div>';
+      document.getElementById('cart-totals').dataset.total = net.toFixed(2);
+    });
+  }
+
+  document.getElementById('promo-apply').addEventListener('click', function () {  // promotion-service
+    var code = document.getElementById('promo-input').value.trim().toUpperCase();
+    var hint = document.getElementById('checkout-hint');
+    if (!code) return;
+    sendJSON('POST', '/promotions/validate', { code: code }).then(function (r) {
+      promo = { code: r.code, percentOff: r.percentOff };
+      hint.className = 'hint ok';
+      hint.textContent = 'Promo ' + r.code + ' applied: −' + r.percentOff + '%';
+      refreshQuote();
+      track('promo_applied', { code: code });
+    }).catch(function () {
+      promo = null;
+      hint.className = 'hint err';
+      hint.textContent = 'Code "' + code + '" is not valid or inactive.';
+      refreshQuote();
+    });
+  });
+
+  // ------------------------------------------------------------ checkout
+  // order → payment → delivery → invoice → loyalty → notification → analytics
+  document.getElementById('checkout-btn').addEventListener('click', function () {
+    var hint = document.getElementById('checkout-hint');
+    if (!cart.length) { hint.className = 'hint err'; hint.textContent = 'Basket is empty.'; return; }
+    if (!session) { closePanels(); openPanel('auth-modal'); toast('Sign in to checkout'); return; }
+    var btn = this;
+    btn.disabled = true;
+    hint.className = 'hint';
+    hint.textContent = 'Placing order…';
+    var total = Number(document.getElementById('cart-totals').dataset.total || 0);
+    var addr = document.getElementById('delivery-addr').value.trim();
+    var order, payment, delivery;
+
+    sendJSON('POST', '/orders', { userId: session.userId, items: cart })
+      .then(function (o) {
+        order = o;
+        hint.textContent = 'Order ' + o.id + ' received — taking payment…';
+        return sendJSON('POST', '/payments', { orderId: o.id, amount: total, method: 'card' });
+      })
+      .then(function (p) {
+        payment = p;
+        hint.textContent = 'Paid (' + p.id + ') — scheduling ' + (addr ? 'delivery' : 'pickup') + '…';
+        return sendJSON('POST', '/deliveries', addr ? { orderId: order.id, address: addr } : { orderId: order.id });
+      })
+      .then(function (d) {
+        delivery = d;
+        return Promise.all([
+          sendJSON('POST', '/invoices', { orderId: order.id }).catch(function () { return null; }),
+          sendJSON('POST', '/loyalty/' + session.userId + '/earn', { points: Math.round(total), reason: 'order ' + order.id }).catch(function () { return null; }),
+          sendJSON('POST', '/notify/email', { to: session.userId, subject: 'Your Crumb & Ember order ' + order.id, body: 'Total ' + euro(total) }).catch(function () { return null; }),
+          sendJSON('DELETE', '/carts/' + session.userId).catch(function () { return null; })
+        ]);
+      })
+      .then(function (extras) {
+        var invoice = extras[0], loyalty = extras[1];
+        cart = [];
+        promo = null;
+        renderBadge();
+        renderCart();
+        hint.className = 'hint ok';
+        hint.textContent = '✓ Order ' + order.id + ' · payment ' + payment.status +
+          (delivery.mode === 'bike' ? ' · rider ETA ' + new Date(delivery.eta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ' · pickup at counter') +
+          (invoice && invoice.id ? ' · invoice ' + invoice.id : '') +
+          (loyalty ? ' · ' + loyalty.points + ' loyalty pts' : '');
+        toast('Order placed 🥖');
+        track('order_placed', { orderId: order.id, total: total });
+      })
+      .catch(function (e) {
+        hint.className = 'hint err';
+        hint.textContent = (e && e.error) ? e.error : 'Checkout failed — see /api/status.';
+      })
+      .then(function () { btn.disabled = false; });
+  });
+
+  // ------------------------------------------------------------ account drawer
+  function openAccount() {
+    document.getElementById('acct-title').textContent = session.name || session.userId;
+    openPanel('account-drawer');
+
+    getJSON('/loyalty/' + session.userId).then(function (l) {  // loyalty-service
+      document.getElementById('loyalty-line').innerHTML =
+        '<span class="mono" style="color:var(--butter);font-size:1.2rem">' + l.points + ' pts</span> · tier: <span class="chip">' + l.tier + '</span>';
+    }).catch(function () {});
+
+    getJSON('/recommendations/' + session.userId).then(function (r) {  // recommendation-service
+      var box = document.getElementById('acct-recos');
+      box.innerHTML = '';
+      (r.productIds || []).forEach(function (id) {
+        var chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = productById[id] ? productById[id].name : id;
+        box.appendChild(chip);
+      });
+    }).catch(function () {});
+
+    getJSON('/orders').then(function (all) {  // order-service (+ delivery per order)
+      var mine = all.filter(function (o) { return o.userId === session.userId; }).slice(-6).reverse();
+      var box = document.getElementById('order-list');
+      box.innerHTML = mine.length ? '' : '<p class="hint">No orders yet.</p>';
+      mine.forEach(function (o) {
+        var count = (o.items || []).reduce(function (s, i) { return s + i.quantity; }, 0);
+        var row = document.createElement('div');
+        row.className = 'order-row';
+        row.innerHTML = '<div><strong>' + o.id + '</strong><span class="st">' + o.status + '</span></div>' +
+                        '<div class="mono">' + count + ' item(s) · ' + new Date(o.createdAt).toLocaleString() + '</div>' +
+                        '<div class="mono" data-del>delivery: …</div>';
+        box.appendChild(row);
+        getJSON('/deliveries/' + o.id).then(function (d) {
+          row.querySelector('[data-del]').textContent = 'delivery: ' + d.mode + ' · ' + d.status +
+            (d.eta ? ' · ETA ' + new Date(d.eta).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+        }).catch(function () { row.querySelector('[data-del]').textContent = 'delivery: pickup / not scheduled'; });
+      });
+    }).catch(function () {});
+  }
+
+  // ------------------------------------------------------------ platform status (gateway /api/status)
+  function renderStatus() {
+    getJSON('/status').then(function (data) {
+      var el = document.getElementById('platform-status');
+      var names = Object.keys(data.services || {});
+      var up = names.filter(function (n) { return data.services[n].up; }).length;
+      el.textContent = data.status === 'ok' ? 'all ' + names.length + ' services up' : up + '/' + names.length + ' services up (degraded)';
+      el.className = data.status === 'ok' ? 'ok' : '';
+      var grid = document.getElementById('service-grid');
+      grid.innerHTML = '';
+      names.sort().forEach(function (n) {
+        var s = data.services[n];
+        var row = document.createElement('span');
+        row.textContent = (s.up ? '● ' : '○ ') + n.replace('-service', '');
+        row.style.color = s.up ? '#9da65d' : '#a63a3a';
+        row.title = s.up ? 'up · ' + s.latencyMs + ' ms' : 'down';
+        grid.appendChild(row);
+      });
+    }).catch(function () {
+      document.getElementById('platform-status').textContent = 'gateway unreachable';
+    });
+  }
+  renderStatus();
+  setInterval(renderStatus, 30000);
+
+  // ------------------------------------------------------------ boot
+  loadCart();
+  track('page_view', { path: location.pathname });
+})();
+</script>
+</body>
+</html>

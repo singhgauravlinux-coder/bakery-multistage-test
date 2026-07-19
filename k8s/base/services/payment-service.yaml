@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: bakery
+  labels:
+    app: payment-service
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: payment-service
+          image: ghcr.io/singhgauravlinux-coder/bakery-multistage/payment-service:71ba5f7
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3008
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: SERVICE_NAME
+              value: "payment-service"
+            - name: PORT
+              value: "3008"
+            - name: LOG_LEVEL
+              value: "info"
+            # Transactions are persisted to Postgres (payments table).
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: bakery-db-secret
+                  key: DATABASE_URL
+            # Razorpay credentials (create the secret from k8s/secrets.example.yaml).
+            # Marked optional so the service still boots in mock mode without it.
+            - name: RAZORPAY_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: razorpay-credentials
+                  key: keyId
+                  optional: true
+            - name: RAZORPAY_KEY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: razorpay-credentials
+                  key: keySecret
+                  optional: true
+            - name: RAZORPAY_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: razorpay-credentials
+                  key: webhookSecret
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3008
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3008
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: bakery
+  labels:
+    app: payment-service
+spec:
+  selector:
+    app: payment-service
+  ports:
+    - port: 3008
+      targetPort: 3008
+      protocol: TCP

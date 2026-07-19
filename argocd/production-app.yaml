@@ -1,0 +1,25 @@
+# Register with: kubectl apply -f argocd/production-app.yaml --namespace argocd
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bakery-production
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: crumb-and-ember
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/singhgauravlinux-coder/bakery-multistage.git
+    targetRevision: main
+    path: k8s/overlays/production
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: bakery-prod
+  syncPolicy:
+    # Deliberately no `automated:` block. GitHub's "production" Environment
+    # already required a reviewer before the image-tag commit landed; Argo
+    # then requires a second, independent action - `argocd app sync
+    # bakery-production` or clicking Sync in the UI - before anything
+    # actually changes in the prod cluster.
+    syncOptions:
+      - CreateNamespace=true
