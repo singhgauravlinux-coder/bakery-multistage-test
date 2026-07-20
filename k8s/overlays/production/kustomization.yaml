@@ -45,7 +45,7 @@ images:
   newTag: 3ce883b
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/api-gateway
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/api-gateway
-  newTag: 10ee068
+  newTag: 9b89017
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/auth-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/auth-service
   newTag: 3e2255a
