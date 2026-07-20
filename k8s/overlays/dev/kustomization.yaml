@@ -9,15 +9,6 @@ kind: Kustomization
 #     `kustomize edit set image` (see .github/workflows/_service-pipeline.yml)
 # ---------------------------------------------------------------------------
 
-namespace: bakery-dev
-
-resources:
-- ../../base
-- ../../base/ingress
-
-commonLabels:
-  environment: dev
-
   # Every service Deployment has exactly one container, so a positional
   # JSON6902 patch (index 0) works regardless of container name and applies
   # identically to all 25 services in one shot.
