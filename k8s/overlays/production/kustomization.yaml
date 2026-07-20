@@ -84,7 +84,7 @@ images:
   newTag: cf63bc5
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/order-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/order-service
-  newTag: 970c340
+  newTag: 3e2255a
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/payment-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/payment-service
   newTag: 68cce4b
