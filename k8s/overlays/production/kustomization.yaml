@@ -63,7 +63,7 @@ images:
   newTag: 994c26f
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/frontend
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/frontend
-  newTag: ab43d33
+  newTag: 865c2d3
 - name: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/inventory-service
   newName: ghcr.io/singhgauravlinux-coder/bakery-multistage-test/inventory-service
   newTag: 6a60687
