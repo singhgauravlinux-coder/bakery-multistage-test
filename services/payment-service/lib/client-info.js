@@ -32,6 +32,8 @@ function isPrivateIp(ip) {
  * development still records something meaningful.
  */
 function getClientIp(req) {
+  const cfIp = String(req.headers['cf-connecting-ip'] || '').trim();
+  if (cfIp && !isPrivateIp(cfIp)) return cfIp;
   const xff = String(req.headers['x-forwarded-for'] || '')
     .split(',')
     .map((s) => s.trim())
