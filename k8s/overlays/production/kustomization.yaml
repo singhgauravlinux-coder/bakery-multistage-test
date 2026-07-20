@@ -34,7 +34,7 @@ patches:
           memory: 384Mi
     - op: replace
       path: /spec/replicas
-      value: 2
+      value: 1
   target:
     kind: Deployment
     labelSelector: app.kubernetes.io/part-of=crumb-and-ember
