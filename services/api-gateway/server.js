@@ -127,6 +127,7 @@ app.all('/api/*', async (req, res) => {
   const headers = { 'content-type': 'application/json', 'x-request-id': requestId };
   if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
   if (req.headers['x-real-ip']) headers['x-real-ip'] = req.headers['x-real-ip'];
+  if (req.headers['cf-connecting-ip']) headers['cf-connecting-ip'] = req.headers['cf-connecting-ip'];
   if (req.headers['user-agent']) headers['user-agent'] = req.headers['user-agent'];
   if (req.headers.authorization) headers.authorization = req.headers.authorization;
   if (req.headers['x-razorpay-signature']) headers['x-razorpay-signature'] = req.headers['x-razorpay-signature'];
