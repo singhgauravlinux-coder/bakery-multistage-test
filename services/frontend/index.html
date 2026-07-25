@@ -1128,7 +1128,7 @@
     if (authMode === 'forgot') {
       var forgotEmail = document.getElementById('forgot-email').value.trim();
       if (!forgotEmail) { hint.className = 'hint err'; hint.textContent = 'Enter your email address.'; return; }
-      sendSecureJSON('POST', '/auth/forgot-password', { email: forgotEmail })
+      sendJSON('POST', '/auth/forgot-password', { email: forgotEmail })
         .then(function (data) {
           if (data && data.resetToken) {
             resetToken = data.resetToken;
@@ -1146,7 +1146,7 @@
       if (!newPass) { hint.className = 'hint err'; hint.textContent = 'Enter a new password.'; return; }
       if (newPass.length < 8) { hint.className = 'hint err'; hint.textContent = 'New password must be at least 8 characters.'; return; }
       if (!resetToken) { hint.className = 'hint err'; hint.textContent = 'Reset link expired — request a new one.'; return; }
-      sendSecureJSON('POST', '/auth/reset-password', { token: resetToken, newPassword: newPass })
+      sendJSON('POST', '/auth/reset-password', { token: resetToken, newPassword: newPass })
         .then(function () {
           toast('Password updated — you can sign in now 🔐');
           document.getElementById('reset-new-pass').value = '';
@@ -1162,7 +1162,7 @@
     if (!email || !pass) { hint.className = 'hint err'; hint.textContent = 'Email and password are required.'; return; }
 
     if (authMode === 'register') {
-      sendSecureJSON('POST', '/auth/register', { email: email, password: pass, name: document.getElementById('reg-name').value.trim() })
+      sendJSON('POST', '/auth/register', { email: email, password: pass, name: document.getElementById('reg-name').value.trim() })
         .then(function () {
           hint.className = 'hint ok'; hint.textContent = 'Account created — signing you in…';
           return doLogin(email, pass);
@@ -1184,7 +1184,7 @@
   });
 
   function doLogin(email, pass) {
-    return sendSecureJSON('POST', '/auth/login', { email: email, password: pass }).then(function (data) {
+    return sendJSON('POST', '/auth/login', { email: email, password: pass }).then(function (data) {
       var guestItems = cart.slice();
       session = { token: data.token, userId: data.userId, name: data.name || email.split('@')[0] };
       localStorage.setItem('crumb.session', JSON.stringify(session));
@@ -1233,7 +1233,7 @@
     if (!apiUp || !session) { hint.className = 'hint err'; hint.textContent = 'You must be signed in to change your password.'; return; }
     if (!changeToken) { hint.className = 'hint err'; hint.textContent = 'Request a new verification code first.'; return; }
 
-    sendSecureJSON('POST', '/auth/password', { changeToken: changeToken, otp: otp, newPassword: next }, true)
+    sendAuthJSON('POST', '/auth/password', { changeToken: changeToken, otp: otp, newPassword: next })
       .then(function () {
         hint.className = 'hint ok'; hint.textContent = 'Password updated.';
         changeToken = null;
