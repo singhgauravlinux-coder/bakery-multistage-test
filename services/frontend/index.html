@@ -212,8 +212,22 @@
   .drawer .head { display: flex; align-items: center; justify-content: space-between;
     padding: 18px 20px; border-bottom: 3px solid var(--choc); background: var(--butter); }
   .drawer .head h2 { font-size: 1.25rem; }
-  .drawer .scroll { flex: 1; overflow-y: auto; padding: 18px 20px; }
-  .drawer .foot { border-top: 3px solid var(--choc); padding: 16px 20px; background: #fff; }
+  .drawer .scroll { flex: 1; overflow-y: auto; padding: 18px 20px; min-height: 56px; }
+  /* The checkout foot scrolls on short viewports so the Pay button is
+     always reachable; the pay bar itself stays pinned at the bottom. */
+  .drawer .foot { border-top: 3px solid var(--choc); padding: 16px 20px 0; background: #fff;
+    overflow-y: auto; flex-shrink: 1; max-height: 78vh; }
+  .paybar { position: sticky; bottom: 0; background: #fff; padding: 10px 0 14px;
+    box-shadow: 0 -8px 10px -8px rgba(0,0,0,0.18); }
+  .masked-wrap { position: relative; }
+  .masked-wrap input { padding-right: 46px; }
+  .eye-btn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: #fff; border: 2px solid var(--choc); border-radius: 10px; width: 34px; height: 30px;
+    cursor: pointer; font-size: 0.95rem; line-height: 1; padding: 0; }
+  @media (max-height: 720px) {
+    .drawer .head { padding: 10px 20px; }
+    .drawer .foot { max-height: none; }
+  }
   .x { background: #fff; border: 3px solid var(--choc); border-radius: 12px; width: 38px; height: 38px;
     font-weight: 900; font-size: 1rem; cursor: pointer; box-shadow: 0 3px 0 var(--shadow); }
 
@@ -519,7 +533,10 @@
     <div id="pay-card-fields">
       <div class="field">
         <label for="card-number">Card number</label>
-        <input id="card-number" inputmode="numeric" autocomplete="cc-number" placeholder="4111 1111 1111 1111" />
+        <div class="masked-wrap">
+          <input id="card-number" type="password" inputmode="numeric" autocomplete="cc-number" placeholder="4111 1111 1111 1111" />
+          <button type="button" class="eye-btn" id="card-eye" aria-label="Show card number" aria-pressed="false" title="Show card number">👁️</button>
+        </div>
       </div>
       <div class="field inline">
         <input id="card-expiry" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/YY" aria-label="Card expiry" style="flex:1" />
@@ -531,8 +548,10 @@
       <input id="upi-vpa" placeholder="name@bank" autocomplete="off" />
     </div>
     <div class="totals" id="cart-totals" data-total="0"></div>
-    <button class="btn green" id="checkout-btn" style="width:100%; justify-content:center">Pay &amp; place order →</button>
-    <p class="hint" id="checkout-hint"></p>
+    <div class="paybar">
+      <button class="btn green" id="checkout-btn" style="width:100%; justify-content:center">Pay &amp; place order →</button>
+      <p class="hint" id="checkout-hint" style="margin-bottom:0"></p>
+    </div>
   </div>
 </aside>
 
@@ -963,6 +982,60 @@
       body: body === undefined ? undefined : JSON.stringify(body)
     }).then(function (r) { return r.json().then(function (b) { if (!r.ok) throw b; return b; }); });
   }
+  /* --- Encrypted transport for sensitive payloads ---------------------
+     Fetches the auth service's RSA public key once, then encrypts JSON
+     bodies with a fresh AES-256-GCM key wrapped via RSA-OAEP(SHA-256),
+     sending { enc: {...} } instead of plaintext. Result: emails and
+     passwords no longer appear in the DevTools Network tab, HAR files
+     or proxy logs. Falls back to plain JSON only if WebCrypto or the
+     key endpoint is unavailable, so login never hard-breaks. */
+  var cryptoKeyPromise = null;
+  function b64url(buf) {
+    var bytes = new Uint8Array(buf), s = '';
+    for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+    return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function getServerKey() {
+    if (!window.crypto || !window.crypto.subtle) return Promise.reject(new Error('webcrypto unavailable'));
+    if (!cryptoKeyPromise) {
+      cryptoKeyPromise = getJSON('/auth/crypto/public-key').then(function (info) {
+        var pem = info.publicKeyPem.replace(/-----[^-]+-----/g, '').replace(/\s+/g, '');
+        var raw = atob(pem), der = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) der[i] = raw.charCodeAt(i);
+        return window.crypto.subtle.importKey('spki', der.buffer,
+          { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt']
+        ).then(function (key) { return { key: key, kid: info.keyId }; });
+      }).catch(function (e) { cryptoKeyPromise = null; throw e; });
+    }
+    return cryptoKeyPromise;
+  }
+  function encryptEnvelope(body) {
+    return getServerKey().then(function (server) {
+      var aesKey, iv = window.crypto.getRandomValues(new Uint8Array(12));
+      return window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt'])
+        .then(function (k) { aesKey = k; return window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, aesKey, new TextEncoder().encode(JSON.stringify(body))); })
+        .then(function (ciphertext) {
+          return window.crypto.subtle.exportKey('raw', aesKey).then(function (rawKey) {
+            return window.crypto.subtle.encrypt({ name: 'RSA-OAEP' }, server.key, rawKey).then(function (wrappedKey) {
+              return { enc: { v: 1, alg: 'RSA-OAEP-256+A256GCM', kid: server.kid, key: b64url(wrappedKey), iv: b64url(iv), data: b64url(ciphertext) } };
+            });
+          });
+        });
+    });
+  }
+  function sendSecureJSON(method, path, body, useAuth) {
+    var send = useAuth ? sendAuthJSON : sendJSON;
+    return encryptEnvelope(body)
+      .then(function (envelope) { return send(method, path, envelope); })
+      .catch(function (err) {
+        // Server-side decrypt/validation errors carry an `error` field —
+        // surface those. Only fall back to plaintext when encryption
+        // itself was impossible (no WebCrypto / key endpoint down).
+        if (err && err.error) throw err;
+        return send(method, path, body);
+      });
+  }
+
   function toast(msg) {
     var t = document.getElementById('toast');
     t.textContent = msg;
@@ -1050,7 +1123,7 @@
     if (authMode === 'forgot') {
       var forgotEmail = document.getElementById('forgot-email').value.trim();
       if (!forgotEmail) { hint.className = 'hint err'; hint.textContent = 'Enter your email address.'; return; }
-      sendJSON('POST', '/auth/forgot-password', { email: forgotEmail })
+      sendSecureJSON('POST', '/auth/forgot-password', { email: forgotEmail })
         .then(function (data) {
           if (data && data.resetToken) {
             resetToken = data.resetToken;
@@ -1068,7 +1141,7 @@
       if (!newPass) { hint.className = 'hint err'; hint.textContent = 'Enter a new password.'; return; }
       if (newPass.length < 8) { hint.className = 'hint err'; hint.textContent = 'New password must be at least 8 characters.'; return; }
       if (!resetToken) { hint.className = 'hint err'; hint.textContent = 'Reset link expired — request a new one.'; return; }
-      sendJSON('POST', '/auth/reset-password', { token: resetToken, newPassword: newPass })
+      sendSecureJSON('POST', '/auth/reset-password', { token: resetToken, newPassword: newPass })
         .then(function () {
           toast('Password updated — you can sign in now 🔐');
           document.getElementById('reset-new-pass').value = '';
@@ -1084,7 +1157,7 @@
     if (!email || !pass) { hint.className = 'hint err'; hint.textContent = 'Email and password are required.'; return; }
 
     if (authMode === 'register') {
-      sendJSON('POST', '/auth/register', { email: email, password: pass, name: document.getElementById('reg-name').value.trim() })
+      sendSecureJSON('POST', '/auth/register', { email: email, password: pass, name: document.getElementById('reg-name').value.trim() })
         .then(function () {
           hint.className = 'hint ok'; hint.textContent = 'Account created — signing you in…';
           return doLogin(email, pass);
@@ -1106,10 +1179,15 @@
   });
 
   function doLogin(email, pass) {
-    return sendJSON('POST', '/auth/login', { email: email, password: pass }).then(function (data) {
+    return sendSecureJSON('POST', '/auth/login', { email: email, password: pass }).then(function (data) {
       var guestItems = cart.slice();
       session = { token: data.token, userId: data.userId, name: data.name || email.split('@')[0] };
       localStorage.setItem('crumb.session', JSON.stringify(session));
+      // Credentials are no longer needed once the JWT is issued — wipe the
+      // inputs so they can't be read from the DOM or a reopened panel.
+      ['auth-email', 'auth-pass', 'reg-name'].forEach(function (id) {
+        var el = document.getElementById(id); if (el) el.value = '';
+      });
       renderAuthState();
       closePanels();
       toast('Signed in as ' + session.name + ' 🎉');
@@ -1150,7 +1228,7 @@
     if (!apiUp || !session) { hint.className = 'hint err'; hint.textContent = 'You must be signed in to change your password.'; return; }
     if (!changeToken) { hint.className = 'hint err'; hint.textContent = 'Request a new verification code first.'; return; }
 
-    sendAuthJSON('POST', '/auth/password', { changeToken: changeToken, otp: otp, newPassword: next })
+    sendSecureJSON('POST', '/auth/password', { changeToken: changeToken, otp: otp, newPassword: next }, true)
       .then(function () {
         hint.className = 'hint ok'; hint.textContent = 'Password updated.';
         changeToken = null;
@@ -1411,6 +1489,25 @@
   /* ============================================================
      CHECKOUT
      ============================================================ */
+  // Card number is masked by default; the eye button reveals it on demand
+  // and everything re-masks whenever the basket drawer closes.
+  (function () {
+    var input = document.getElementById('card-number');
+    var eye = document.getElementById('card-eye');
+    function setRevealed(on) {
+      input.type = on ? 'text' : 'password';
+      eye.textContent = on ? '🙈' : '👁️';
+      eye.setAttribute('aria-pressed', String(on));
+      eye.setAttribute('aria-label', on ? 'Hide card number' : 'Show card number');
+      eye.title = on ? 'Hide card number' : 'Show card number';
+    }
+    eye.addEventListener('click', function () { setRevealed(input.type === 'password'); });
+    window.maskCardNumber = function () { setRevealed(false); };
+    document.getElementById('cart-drawer').addEventListener('transitionend', function () {
+      if (!this.classList.contains('open')) setRevealed(false);
+    });
+  })();
+
   // Payment method selector toggles the instrument fields.
   document.getElementById('pay-method').addEventListener('change', function () {
     document.getElementById('pay-card-fields').style.display = this.value === 'card' ? 'block' : 'none';
@@ -1501,6 +1598,7 @@
           (invoice && invoice.id ? ' · invoice ' + invoice.id : '') +
           (loyalty ? ' · ' + loyalty.points + ' loyalty pts' : '');
         ['card-number', 'card-expiry', 'card-cvv', 'upi-vpa'].forEach(function (id) { document.getElementById(id).value = ''; });
+        if (window.maskCardNumber) window.maskCardNumber(); // back to hidden for the next order
         toast('Order placed 🥖🎉');
         track('order_placed', { orderId: order.id, total: total });
       })
