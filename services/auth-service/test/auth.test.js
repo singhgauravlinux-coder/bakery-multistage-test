@@ -4,7 +4,8 @@ process.env.AUTH_RETURN_DEBUG_TOKENS = 'true';
 
 const { test, before } = require('node:test');
 const assert = require('node:assert/strict');
-const { app, audit, MAX_FAILED_ATTEMPTS } = require('../server');
+const crypto = require('crypto');
+const { app, audit, securePayload, MAX_FAILED_ATTEMPTS } = require('../server');
 const { getClientIp, parseUserAgent, isPrivateIp } = require('../lib/client-info');
 
 let base;
@@ -120,6 +121,74 @@ test('logout is audited; email verification round-trips', async () => {
   const reqRes = await (await post('/auth/verify-email/request', {}, auth)).json();
   assert.ok(reqRes.verifyToken);
   assert.equal((await post('/auth/verify-email/confirm', { token: reqRes.verifyToken })).status, 200);
+});
+
+test('session tokens are standards-compliant JWTs (HS256) with purpose + expiry', async () => {
+  await register('jwt@test.dev', 'password123');
+  const { token } = await (await post('/auth/login', { email: 'jwt@test.dev', password: 'password123' })).json();
+  const parts = token.split('.');
+  assert.equal(parts.length, 3);
+  const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString());
+  const claims = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
+  assert.deepEqual(header, { alg: 'HS256', typ: 'JWT' });
+  assert.equal(claims.purpose, 'session');
+  assert.ok(claims.sub && claims.iss && claims.jti);
+  assert.ok(claims.exp > Math.floor(Date.now() / 1000));
+
+  // Tampered signature must be rejected; purpose-scoped tokens must not
+  // be usable as sessions.
+  const forged = `${parts[0]}.${parts[1]}.AAAA${parts[2].slice(4)}`;
+  assert.equal((await fetch(base + '/auth/verify', { headers: { authorization: `Bearer ${forged}` } })).status, 401);
+});
+
+// Mirrors the browser's WebCrypto flow using node crypto.
+function encryptEnvelope(publicKeyPem, body) {
+  const aesKey = crypto.randomBytes(32);
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', aesKey, iv);
+  const ct = Buffer.concat([cipher.update(JSON.stringify(body), 'utf8'), cipher.final()]);
+  const data = Buffer.concat([ct, cipher.getAuthTag()]); // WebCrypto appends the tag
+  const wrapped = crypto.publicEncrypt(
+    { key: publicKeyPem, padding: crypto.constants.RSA_PKCS1_OAEP_PADDING, oaepHash: 'sha256' }, aesKey);
+  return { enc: { v: 1, alg: 'RSA-OAEP-256+A256GCM', key: wrapped.toString('base64url'), iv: iv.toString('base64url'), data: data.toString('base64url') } };
+}
+
+test('encrypted login envelope: credentials never travel in plaintext', async () => {
+  await register('sealed@test.dev', 'password123');
+  const keyInfo = await (await fetch(base + '/auth/crypto/public-key')).json();
+  assert.ok(keyInfo.publicKeyPem.includes('BEGIN PUBLIC KEY'));
+
+  const envelope = encryptEnvelope(keyInfo.publicKeyPem, { email: 'sealed@test.dev', password: 'password123' });
+  assert.ok(!JSON.stringify(envelope).includes('password123')); // what the Network tab would show
+  const res = await post('/auth/login', envelope);
+  assert.equal(res.status, 200);
+  assert.ok((await res.json()).token);
+
+  // Garbage envelopes fail closed with a clear error, not a crash.
+  const bad = await post('/auth/login', { enc: { v: 1, key: 'xx', iv: 'xx', data: 'xx' } });
+  assert.equal(bad.status, 400);
+});
+
+test('manual encrypt/decrypt API round-trips and requires auth', async () => {
+  await register('vault@test.dev', 'password123');
+  const { token } = await (await post('/auth/login', { email: 'vault@test.dev', password: 'password123' })).json();
+  const auth = { authorization: `Bearer ${token}` };
+
+  assert.equal((await post('/auth/crypto/encrypt', { data: 'secret' })).status, 401); // no token
+
+  const encRes = await post('/auth/crypto/encrypt', { data: 'top secret 🍞' }, auth);
+  assert.equal(encRes.status, 200);
+  const { ciphertext } = await encRes.json();
+  assert.match(ciphertext, /^enc1\./);
+  assert.ok(!ciphertext.includes('top secret'));
+
+  const decRes = await post('/auth/crypto/decrypt', { ciphertext }, auth);
+  assert.equal(decRes.status, 200);
+  assert.equal((await decRes.json()).data, 'top secret 🍞');
+
+  assert.equal((await post('/auth/crypto/decrypt', { ciphertext: 'enc1.a.b.c' }, auth)).status, 400);
+  // Module-level round trip too (used by other services importing the lib).
+  assert.equal(securePayload.decryptData(securePayload.encryptData('x')), 'x');
 });
 
 test('client-info: real public IP wins over internal Docker hops; UA parsing', () => {
