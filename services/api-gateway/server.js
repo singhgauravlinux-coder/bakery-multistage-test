@@ -110,14 +110,35 @@ app.use('/api', async (req, res) => {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), UPSTREAM_TIMEOUT_MS);
 
+  // Only set headers that actually have a value — fetch() coerces an
+  // `undefined` header value to the literal string "undefined" instead of
+  // omitting it, which was corrupting downstream audit logs (request_id,
+  // browser/OS parsing) for every proxied request.
+  const proxyHeaders = {
+    'content-type': req.headers['content-type'] || 'application/json'
+  };
+  if (req.headers['authorization']) proxyHeaders.authorization = req.headers['authorization'];
+  if (req.headers['x-request-id']) proxyHeaders['x-request-id'] = req.headers['x-request-id'];
+
+  // Preserve the real client's User-Agent so downstream services' audit
+  // logs (lib/client-info.js) can parse browser/OS/device correctly instead
+  // of seeing the gateway's own fetch() default User-Agent.
+  if (req.headers['user-agent']) proxyHeaders['user-agent'] = req.headers['user-agent'];
+
+  // Preserve/extend the client-IP chain the same way any reverse proxy
+  // should: append this hop's peer address to any existing X-Forwarded-For
+  // rather than dropping it, so lib/client-info.js sees the real visitor
+  // IP instead of the gateway pod's own address.
+  proxyHeaders['x-forwarded-for'] = [req.headers['x-forwarded-for'], req.socket.remoteAddress]
+    .filter(Boolean)
+    .join(', ');
+  if (req.headers['x-real-ip']) proxyHeaders['x-real-ip'] = req.headers['x-real-ip'];
+  if (req.headers['cf-connecting-ip']) proxyHeaders['cf-connecting-ip'] = req.headers['cf-connecting-ip'];
+
   try {
     const upstreamRes = await fetch(targetUrl, {
       method: req.method,
-      headers: {
-        'content-type': req.headers['content-type'] || 'application/json',
-        authorization: req.headers['authorization'] || undefined,
-        'x-request-id': req.headers['x-request-id'] || undefined
-      },
+      headers: proxyHeaders,
       body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body ?? {}),
       signal: ctrl.signal
     });
