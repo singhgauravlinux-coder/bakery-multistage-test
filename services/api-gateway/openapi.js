@@ -32,6 +32,28 @@ module.exports = {
       }
     },
     // --------------------------------------------------------------- auth
+    '/auth/crypto/public-key': {
+      get: {
+        tags: ['auth'], summary: 'RSA public key for encrypting request bodies (JWT/credentials never sent in plaintext)',
+        responses: { 200: ok('Key info: { keyId, algorithm, publicKeyPem }') }
+      }
+    },
+    '/auth/crypto/encrypt': {
+      post: {
+        tags: ['auth'], summary: 'Manually encrypt data (AES-256-GCM, server-held key)',
+        parameters: [hdr('authorization', 'Bearer <token>')],
+        requestBody: jsonBody({ data: str('any string or JSON value') }, ['data']),
+        responses: { 200: ok('{ ciphertext, algorithm }'), 401: err('Invalid or expired token'), 413: err('Payload over 64KB') }
+      }
+    },
+    '/auth/crypto/decrypt': {
+      post: {
+        tags: ['auth'], summary: 'Manually decrypt data previously encrypted via /auth/crypto/encrypt',
+        parameters: [hdr('authorization', 'Bearer <token>')],
+        requestBody: jsonBody({ ciphertext: str('enc1.<iv>.<data>.<tag>') }, ['ciphertext']),
+        responses: { 200: ok('{ data }'), 400: err('Invalid ciphertext'), 401: err('Invalid or expired token') }
+      }
+    },
     '/auth/register': {
       post: {
         tags: ['auth'], summary: 'Register a new account',
