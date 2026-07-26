@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 const { clientInfo } = require('./lib/client-info');
 const { createAuditLogger } = require('./lib/audit');
+const { createSecurePayload } = require('./lib/secure-payload');
 
 const SERVICE_NAME = process.env.SERVICE_NAME || 'auth-service';
 const PORT = Number(process.env.PORT || 3000);
@@ -50,30 +51,53 @@ function verifyPassword(password, stored) {
 
 const sha256 = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 
-// --- Stateless signed tokens (HMAC-SHA256), scoped by purpose ------------
-// One signer/verifier pair covers session, forgot-password reset,
-// change-password (OTP-bound) and email-verification tokens; the `purpose`
-// claim prevents a token issued for one flow being replayed in another.
+// --- Stateless JWTs (RFC 7519, HS256), scoped by purpose -----------------
+// Tokens are now standards-compliant JSON Web Tokens so they can be
+// inspected on jwt.io and verified by any JWT library. One signer/verifier
+// pair covers session, forgot-password reset, change-password (OTP-bound)
+// and email-verification tokens; the `purpose` claim prevents a token
+// issued for one flow being replayed in another.
+const JWT_ISSUER = process.env.AUTH_JWT_ISSUER || 'crumb-and-ember-auth';
+const JWT_HEADER_B64 = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+const jwtSign = (input) => crypto.createHmac('sha256', TOKEN_SECRET).update(input).digest('base64url');
+
 function signScopedToken(userId, purpose, ttlMs, extra) {
-  const claims = { sub: userId, purpose, exp: Date.now() + ttlMs, ...(extra || {}) };
-  const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
-  const sig = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
-  return `${payload}.${sig}`;
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    iss: JWT_ISSUER, sub: userId, purpose,
+    iat: now, exp: now + Math.ceil(ttlMs / 1000),
+    jti: crypto.randomUUID(), ...(extra || {})
+  };
+  const body = `${JWT_HEADER_B64}.${Buffer.from(JSON.stringify(claims)).toString('base64url')}`;
+  return `${body}.${jwtSign(body)}`;
 }
 function verifyScopedToken(token, purpose) {
   try {
-    const [payload, sig] = String(token).split('.');
-    const expected = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest();
-    const given = Buffer.from(sig, 'base64url');
+    const parts = String(token).split('.');
+    if (parts.length === 2) return verifyLegacyToken(parts, purpose); // pre-JWT sessions
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, sig] = parts;
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString());
+    if (header.alg !== 'HS256') return null; // never accept alg:none / downgrade
+    const expected = Buffer.from(jwtSign(`${headerB64}.${payloadB64}`));
+    const given = Buffer.from(sig);
     if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
-    if (!data.sub || Date.now() > data.exp) return null;
-    // Session tokens minted before purpose-scoping carry no `purpose` claim;
-    // accept those only for the session scope so existing logins keep working.
-    const tokenPurpose = data.purpose || 'session';
-    if (tokenPurpose !== purpose) return null;
+    const data = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+    if (!data.sub || Math.floor(Date.now() / 1000) > data.exp) return null;
+    if ((data.purpose || 'session') !== purpose) return null;
     return data;
   } catch { return null; }
+}
+// Tokens minted before the JWT migration were `payload.sig` (2 parts, ms
+// expiry). Accept them until they age out so existing logins keep working.
+function verifyLegacyToken([payload, sig], purpose) {
+  const expected = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest();
+  const given = Buffer.from(sig, 'base64url');
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) return null;
+  const data = JSON.parse(Buffer.from(payload, 'base64url').toString());
+  if (!data.sub || Date.now() > data.exp) return null;
+  if ((data.purpose || 'session') !== purpose) return null;
+  return data;
 }
 const signToken = (userId) => signScopedToken(userId, 'session', TOKEN_TTL_MS);
 const verifyToken = (token) => {
@@ -331,6 +355,29 @@ const app = express();
 // their X-Forwarded-* headers so req.ip and rate-limit keys are correct.
 app.set('trust proxy', true);
 app.use(express.json());
+
+// --- Encrypted request bodies (see lib/secure-payload.js) ----------------
+// When a client sends { enc: {...} } we decrypt it back into req.body, so
+// every route below works identically for plain and encrypted payloads —
+// but credentials never appear in the browser Network tab or proxy logs.
+const securePayload = createSecurePayload({ env: process.env });
+logger.info({ event: 'payload_crypto_ready', keyId: securePayload.keyId, keySource: securePayload.keySource },
+  'transport encryption keypair ready');
+app.use((req, res, next) => {
+  if (!req.body || !req.body.enc) return next();
+  try {
+    req.body = JSON.parse(securePayload.decryptEnvelope(req.body.enc));
+    req.encryptedPayload = true;
+    return next();
+  } catch (err) {
+    logger.warn({ event: 'envelope_decrypt_failed', message: err.message, path: req.path }, 'could not decrypt request payload');
+    return res.status(400).json({
+      error: 'Could not decrypt request payload',
+      hint: 'Re-fetch GET /auth/crypto/public-key — the server key may have rotated — and retry.'
+    });
+  }
+});
+
 app.use(pinoHttp({
   logger,
   customProps: (req) => {
@@ -360,6 +407,46 @@ app.get('/ready', async (req, res) => {
     req.log.warn({ event: 'readiness_failed', message: err.message }, 'database unreachable');
     res.status(503).json({ ready: false, service: SERVICE_NAME, storage: store.mode });
   }
+});
+
+// --- Crypto endpoints ----------------------------------------------------
+// Public key for the browser to encrypt request bodies with.
+app.get('/auth/crypto/public-key', (req, res) => res.json(securePayload.publicKeyInfo()));
+
+// Manual encryption API (requires a valid session token): encrypt/decrypt
+// arbitrary data server-side with AES-256-GCM. Useful for storing secrets
+// in third-party systems or sharing data that only this backend can read.
+app.post('/auth/crypto/encrypt', async (req, res, next) => {
+  try {
+    const info = clientInfo(req);
+    const userId = verifyToken(bearerToken(req));
+    if (!userId) return res.status(401).json({ error: 'Invalid or expired token' });
+    const { data } = req.body || {};
+    if (data === undefined || data === null || data === '') return res.status(400).json({ error: 'data is required' });
+    const plaintext = typeof data === 'string' ? data : JSON.stringify(data);
+    if (plaintext.length > 64 * 1024) return res.status(413).json({ error: 'data must be 64KB or less' });
+    const ciphertext = securePayload.encryptData(plaintext);
+    audit.record({ ...info, action: 'data_encrypt', userId, success: true, statusCode: 200, metadata: { bytes: plaintext.length } });
+    res.json({ ciphertext, algorithm: 'AES-256-GCM' });
+  } catch (err) { next(err); }
+});
+
+app.post('/auth/crypto/decrypt', async (req, res, next) => {
+  try {
+    const info = clientInfo(req);
+    const userId = verifyToken(bearerToken(req));
+    if (!userId) return res.status(401).json({ error: 'Invalid or expired token' });
+    const { ciphertext } = req.body || {};
+    if (!ciphertext) return res.status(400).json({ error: 'ciphertext is required' });
+    let data;
+    try { data = securePayload.decryptData(ciphertext); }
+    catch {
+      audit.record({ ...info, action: 'data_decrypt', userId, success: false, statusCode: 400, failureReason: 'invalid_ciphertext' });
+      return res.status(400).json({ error: 'Ciphertext is invalid or was encrypted with a different key' });
+    }
+    audit.record({ ...info, action: 'data_decrypt', userId, success: true, statusCode: 200 });
+    res.json({ data });
+  } catch (err) { next(err); }
 });
 
 const isLocked = (account) => Boolean(account && account.lockedAt);
@@ -691,4 +778,4 @@ function start() {
 
 if (require.main === module) start();
 
-module.exports = { app, store, audit, signScopedToken, verifyScopedToken, hashPassword, verifyPassword, MAX_FAILED_ATTEMPTS };
+module.exports = { app, store, audit, securePayload, signScopedToken, verifyScopedToken, hashPassword, verifyPassword, MAX_FAILED_ATTEMPTS };
