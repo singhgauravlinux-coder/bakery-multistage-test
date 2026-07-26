@@ -84,6 +84,73 @@ const CURRENCIES = {
 const normalize = (code) => String(code || '').trim().toUpperCase();
 const known = (code) => Object.prototype.hasOwnProperty.call(CURRENCIES, code);
 
+// --- Real-time rates ------------------------------------------------------
+// Live EUR-based rates are fetched on boot and refreshed on a timer from
+// free, keyless providers (primary: open.er-api.com, fallback:
+// frankfurter.app / ECB). The hardcoded table above stays as the ultimate
+// fallback and still supplies names/symbols/decimals — only `rate` is
+// updated live. Set FX_DISABLE_LIVE=true to pin the static demo rates.
+const FX_DISABLE_LIVE = (process.env.FX_DISABLE_LIVE || 'false') === 'true';
+const FX_REFRESH_MS = Number(process.env.FX_REFRESH_MS || 60 * 60 * 1000); // hourly
+const ratesMeta = { source: 'static', asOf: new Date().toISOString(), nextRefresh: null, updatedCodes: 0 };
+
+async function fetchJson(url, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || 5000);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { accept: 'application/json' } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } finally { clearTimeout(timer); }
+}
+
+function applyRates(rates, source, asOf) {
+  let updated = 0;
+  for (const [code, rate] of Object.entries(rates)) {
+    if (known(code) && Number.isFinite(rate) && rate > 0) { CURRENCIES[code].rate = rate; updated++; }
+  }
+  if (updated > 0) Object.assign(ratesMeta, { source, asOf, updatedCodes: updated });
+  return updated;
+}
+
+async function refreshRates() {
+  if (FX_DISABLE_LIVE) return;
+  try {
+    // Primary: open.er-api.com — ~160 currencies, no key, daily updates.
+    const data = await fetchJson('https://open.er-api.com/v6/latest/EUR');
+    if (data && data.result === 'success' && data.rates) {
+      const n = applyRates(data.rates, 'open.er-api.com',
+        data.time_last_update_utc ? new Date(data.time_last_update_utc).toISOString() : new Date().toISOString());
+      logger.info({ event: 'fx_rates_refreshed', source: ratesMeta.source, updated: n, nextUpdate: data.time_next_update_utc }, 'live FX rates applied');
+      return;
+    }
+    throw new Error('unexpected response shape');
+  } catch (primaryErr) {
+    try {
+      // Fallback: frankfurter.app (ECB reference rates, ~30 currencies).
+      const data = await fetchJson('https://api.frankfurter.app/latest?base=EUR');
+      if (data && data.rates) {
+        const n = applyRates(data.rates, 'frankfurter.app/ECB', data.date ? `${data.date}T16:00:00Z` : new Date().toISOString());
+        logger.info({ event: 'fx_rates_refreshed', source: ratesMeta.source, updated: n }, 'live FX rates applied (fallback provider)');
+        return;
+      }
+      throw new Error('unexpected response shape');
+    } catch (fallbackErr) {
+      logger.warn({ event: 'fx_refresh_failed', primary: primaryErr.message, fallback: fallbackErr.message },
+        `live FX fetch failed — serving ${ratesMeta.source} rates from ${ratesMeta.asOf}`);
+    }
+  }
+}
+if (!FX_DISABLE_LIVE) {
+  refreshRates();
+  const timer = setInterval(() => {
+    ratesMeta.nextRefresh = new Date(Date.now() + FX_REFRESH_MS).toISOString();
+    refreshRates();
+  }, FX_REFRESH_MS);
+  timer.unref();
+  ratesMeta.nextRefresh = new Date(Date.now() + FX_REFRESH_MS).toISOString();
+}
+
 function convert(amount, from, to) {
   // amount/from-rate = EUR value; EUR value * to-rate = target value
   const inEur = amount / CURRENCIES[from].rate;
@@ -96,7 +163,8 @@ function convert(amount, from, to) {
 app.get(['/currency', '/currency/currencies'], (req, res) => {
   res.json({
     base: BASE,
-    asOf: new Date().toISOString(),
+    asOf: ratesMeta.asOf,
+    rateSource: ratesMeta.source,
     currencies: Object.entries(CURRENCIES).map(([code, c]) => ({
       code, name: c.name, symbol: c.symbol, decimals: c.decimals, ratePerEur: c.rate
     }))
@@ -109,7 +177,7 @@ app.get('/currency/rates', (req, res) => {
   if (!known(base)) return res.status(400).json({ error: `Unknown base currency "${base}"`, supported: Object.keys(CURRENCIES) });
   const rates = {};
   for (const code of Object.keys(CURRENCIES)) rates[code] = convert(1, base, code);
-  res.json({ base, asOf: new Date().toISOString(), rates });
+  res.json({ base, asOf: ratesMeta.asOf, rateSource: ratesMeta.source, rates });
 });
 
 // GET /convert?amount=10&from=EUR&to=INR  (also accepts POST with a JSON body)
@@ -129,11 +197,19 @@ function handleConvert(req, res) {
     rate: convert(1, from, to),
     symbol: CURRENCIES[to].symbol,
     formatted: `${CURRENCIES[to].symbol}${result.toLocaleString('en-US', { minimumFractionDigits: CURRENCIES[to].decimals, maximumFractionDigits: CURRENCIES[to].decimals })}`,
-    asOf: new Date().toISOString()
+    asOf: ratesMeta.asOf,
+    rateSource: ratesMeta.source
   });
 }
 app.get('/currency/convert', handleConvert);
 app.post('/currency/convert', handleConvert);
+
+// POST /currency/refresh — force an immediate live-rate refresh (e.g. from
+// a cron or after a provider outage) instead of waiting for the timer.
+app.post('/currency/refresh', async (req, res) => {
+  await refreshRates();
+  res.json({ source: ratesMeta.source, asOf: ratesMeta.asOf, updatedCodes: ratesMeta.updatedCodes, live: !FX_DISABLE_LIVE });
+});
 
 // --- 404 + error handling ----------------------------------------------
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
